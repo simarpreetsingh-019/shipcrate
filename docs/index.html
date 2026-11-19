@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>shipcrate: release and update tooling in one command</title>
+<meta name="description" content="Drop a tested release system into any repo: quality gate, GitHub releases with checksums and provenance, Homebrew, installers, update checks for macOS, Linux and Windows, plus AI agent skills.">
+<meta property="og:title" content="shipcrate">
+<meta property="og:description" content="Release and update tooling for your products, in one command.">
+<style>
+:root { --bg:#fbfaf7; --fg:#1d1d1f; --muted:#5e5e66; --card:#ffffff; --line:#e6e3dc; --accent:#d9480f; --code:#f3f1ec; }
+@media (prefers-color-scheme: dark) { :root { --bg:#141416; --fg:#ececef; --muted:#a0a0aa; --card:#1c1c20; --line:#2c2c33; --accent:#ff8a4c; --code:#232329; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+.wrap { max-width:960px; margin:0 auto; padding:0 20px; }
+header { padding:72px 0 40px; }
+h1 { font-size:clamp(40px,7vw,64px); line-height:1.05; margin:0 0 12px; letter-spacing:-0.02em; }
+h1 span { color:var(--accent); }
+.lead { font-size:20px; color:var(--muted); max-width:640px; margin:0 0 28px; }
+.btns a { display:inline-block; margin:0 10px 10px 0; padding:10px 18px; border-radius:10px; text-decoration:none; font-weight:600; border:1px solid var(--line); color:var(--fg); }
+.btns a.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+pre { background:var(--code); border:1px solid var(--line); border-radius:12px; padding:16px; overflow-x:auto; font:14px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.92em; }
+h2 { font-size:28px; margin:56px 0 16px; letter-spacing:-0.01em; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; }
+.card h3 { margin:0 0 6px; font-size:17px; }
+.card p { margin:0; color:var(--muted); font-size:15px; }
+table { width:100%; border-collapse:collapse; font-size:15px; }
+th, td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); }
+a { color:var(--accent); }
+footer { margin:72px 0 40px; padding-top:24px; border-top:1px solid var(--line); color:var(--muted); font-size:15px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>ship<span>crate</span></h1>
+  <p class="lead">Release and update tooling for your products, in one command. Quality gate, GitHub releases with checksums and provenance, Homebrew, installers and update checks for macOS, Linux and Windows. Works by hand and with AI coding agents.</p>
+  <div class="btns">
+    <a class="primary" href="https://github.com/simarpreetsingh-019/shipcrate">View on GitHub</a>
+    <a href="https://github.com/simarpreetsingh-019/shipcrate/releases/latest">Latest release</a>
+    <a href="https://github.com/simarpreetsingh-019/shipcrate/stargazers">⭐ Star it</a>
+  </div>
+<pre><code>git clone https://github.com/simarpreetsingh-019/shipcrate ~/.shipcrate
+cd your-project
+~/.shipcrate/bin/shipcrate init --dry-run     # see what it would write
+~/.shipcrate/bin/shipcrate init               # name, app/cli, language, repo, platforms
+sh scripts/release.sh 0.1.0 --dry-run         # build + notes, publishes nothing</code></pre>
+</header>
+
+<h2>What you get</h2>
+<div class="grid">
+  <div class="card"><h3>One quality gate</h3><p>Build, tests, secret scan, lint and dependency audit for Rust, Swift, Python and Node. It runs on every commit, push, CI run and release.</p></div>
+  <div class="card"><h3>One-command releases</h3><p>Guardrails, then build, SHA-256, <code>latest.json</code>, GitHub release with "What's new", Homebrew tap bump and webhook.</p></div>
+  <div class="card"><h3>Every platform</h3><p>Native CI builds for macOS, Linux and Windows on x64 and arm64. Per-platform Homebrew checksums, plus <code>install.sh</code> and <code>install.ps1</code>.</p></div>
+  <div class="card"><h3>Update checks</h3><p>An in-app Update button for Swift apps. For Rust, Python and Node CLIs: a once-a-day notice and <code>upgrade</code> with rollback.</p></div>
+  <div class="card"><h3>Your notifications</h3><p>Hooks for your own notification UI, a signed webhook to your push server, or a manifest your servers can poll.</p></div>
+  <div class="card"><h3>Agent-ready</h3><p>Skills for Claude Code and Codex, plus AGENTS.md and a Cursor rule. Agents ask before they push or publish.</p></div>
+</div>
+
+<h2>Security built in</h2>
+<table>
+  <tr><th>Guard</th><th>What it does</th></tr>
+  <tr><td>Release guardrails</td><td>Releases only from the default branch, with green CI for that commit, a CHANGELOG entry, a newer version and a clean tree.</td></tr>
+  <tr><td>Strict release gate</td><td>Nothing can be skipped: tests, audits, secret scan and workflow lint must all pass.</td></tr>
+  <tr><td>Checksums + provenance</td><td>SHA-256 for every file and <code>actions/attest-build-provenance</code>. Tampered downloads are refused.</td></tr>
+  <tr><td>Shipped tests</td><td>Every project gets tests that prove a tampered release can't install and that upgrade and rollback work.</td></tr>
+  <tr><td>No telemetry</td><td>The update check is one anonymous GET, at most daily, never in CI, and you can turn it off.</td></tr>
+</table>
+
+<h2>Read more</h2>
+<div class="grid">
+  <div class="card"><h3><a href="INTEGRATING.html">Integrating</a></h3><p>Existing release process or notification system? Take only the parts you need.</p></div>
+  <div class="card"><h3><a href="PLATFORMS.html">Platforms</a></h3><p>Targets, runners, Windows, and code signing.</p></div>
+  <div class="card"><h3><a href="https://github.com/simarpreetsingh-019/shipcrate/blob/main/SECURITY.md">Security</a></h3><p>What shipcrate guarantees, and its known limits.</p></div>
+  <div class="card"><h3><a href="https://github.com/simarpreetsingh-019/shipcrate/blob/main/CONTRIBUTING.md">Contributing</a></h3><p>Add a language or platform, or fix a bug.</p></div>
+</div>
+
+<footer>
+  Made by <b>Simarpreet Singh</b> ·
+  <a href="https://simarpreetsingh-019.github.io">Portfolio</a> ·
+  <a href="https://x.com/simarpreet_019">@simarpreet_019</a> ·
+  <a href="mailto:simarpreetsingh.019@gmail.com">Email</a> ·
+  MIT License. Grew out of <a href="https://github.com/simarpreetsingh-019/Thermo">Thermo</a>.
+</footer>
+</div>
+</body>
+</html>

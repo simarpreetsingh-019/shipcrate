@@ -1,6 +1,6 @@
 # shipcrate
 
-[![CI](https://github.com/simarpreetsingh-019/shipcrate/actions/workflows/ci.yml/badge.svg)](https://github.com/simarpreetsingh-019/shipcrate/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/simarpreetsingh-019/shipcrate)](https://github.com/simarpreetsingh-019/shipcrate/releases) [![Stars](https://img.shields.io/github/stars/simarpreetsingh-019/shipcrate?style=social)](https://github.com/simarpreetsingh-019/shipcrate/stargazers) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![CI](https://github.com/simarpreetsingh-019/shipcrate/actions/workflows/ci.yml/badge.svg)](https://github.com/simarpreetsingh-019/shipcrate/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/simarpreetsingh-019/shipcrate)](https://github.com/simarpreetsingh-019/shipcrate/releases) [![Stars](https://img.shields.io/github/stars/simarpreetsingh-019/shipcrate?style=social)](https://github.com/simarpreetsingh-019/shipcrate/stargazers) [![Site](https://img.shields.io/badge/site-github.io-orange)](https://simarpreetsingh-019.github.io/shipcrate/) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 **Release and update tooling for your products, in one command.** shipcrate drops a tested release system into
 any repo: a quality gate with git hooks and CI, a one-command release script, GitHub releases with SHA-256
