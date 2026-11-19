@@ -12,6 +12,17 @@ step "no secrets in tracked files" 'files | while IFS= read -r f; do [ -f "$f" ]
 step "no email addresses outside LICENSE" 'files | grep -v -E "^LICENSE$" | while IFS= read -r f; do [ -f "$f" ] && grep -I -n -E "[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.(com|org|net|io|dev)" "$f" | grep -v -E "noreply|users\.noreply" | sed "s|^|$f:|"; done | { ! grep .; }'
 step "no files > 1 MB" 'files | while IFS= read -r f; do [ -f "$f" ] && [ "$(wc -c < "$f")" -gt 1048576 ] && echo "$f"; done | { ! grep .; }'
 step "skill copies are identical" 'cmp -s skills/shipcrate/SKILL.md .agents/skills/shipcrate/SKILL.md'
+# The same workflow guardrails shipcrate puts in every project, applied to its own workflows and templates.
+step "workflow guardrails" 'for f in .github/workflows/*.yml templates/common/.github/workflows/*.yml; do
+  grep -q "^permissions:" "$f" || echo "$f: no top-level permissions"
+  grep -n "pull_request_target\|write-all" "$f" | sed "s|^|$f: |"
+  grep -nE "echo .*\\$\\{\\{ *secrets\\." "$f" | sed "s|^|$f: echoes a secret: |"
+  grep -nE "^\s*(-\s*)?uses:" "$f" | grep -vE "uses: *(actions/|github/|\./)|@[0-9a-f]{40}" | sed "s|^|$f: unpinned third-party action: |"
+done | { ! grep .; }'
+step "templates: no credentials in release.conf" '! grep -nE "(SECRET|PASSWORD|API_KEY|WEBHOOK_URL)=" templates/common/release.conf'
+if command -v shellcheck >/dev/null 2>&1; then
+  step "shellcheck (errors)" 'shellcheck -S error -s sh bin/shipcrate skills/install.sh $(git ls-files "*.sh") templates/common/.githooks/*'
+else printf "• %-44s– optional: brew install shellcheck\n" "shellcheck"; fi
 [ "$MODE" = "--quick" ] || step "init: every type and language" sh tests/test-init.sh
 echo; [ $FAIL -eq 0 ] && echo "All checks passed." || echo "$FAIL check(s) failed."
 exit $FAIL

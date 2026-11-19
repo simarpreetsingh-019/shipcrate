@@ -22,7 +22,11 @@ set -- $TARGETS; T=$1; for t in $TARGETS; do [ "$t" = "$(host_target)" ] && T=$t
 A=$(asset_for "$T"); mkdir -p dist stage
 if [ "$TYPE" = cli ]; then
   printf '#!/bin/sh\necho test-9.9.9\n' > "stage/$BINARY"; chmod 755 "stage/$BINARY"
-  case "$A" in *.zip) (cd stage && zip -q "../dist/$A" "$BINARY") ;; *) tar -czf "dist/$A" -C stage "$BINARY" ;; esac
+  case "$A" in
+    *.zip) if command -v zip >/dev/null; then (cd stage && zip -q "../dist/$A" "$BINARY")
+           else powershell -NoProfile -Command "Compress-Archive -Path 'stage/$BINARY' -DestinationPath 'dist/$A'"; fi ;;
+    *) tar -czf "dist/$A" -C stage "$BINARY" ;;
+  esac
 else
   mkdir -p "stage/x.app" && echo fake > "stage/x.app/f" && (cd stage && zip -qr "../dist/$A" x.app)
 fi

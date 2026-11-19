@@ -8,10 +8,32 @@ permissions:
 jobs:
   gate:
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Quality gate (shell syntax, secrets, init for every type and language)
+      - name: Quality gate (shell syntax, secrets, workflow guardrails, init + shipped tests for every type and language)
         run: sh scripts/check.sh
+  windows:
+    # Windows: generate a Windows-target CLI, parse install.ps1, run the shipped tests under Git Bash.
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate a Windows project
+        run: |
+          mkdir -p "$RUNNER_TEMP/w" && sh bin/shipcrate init "$RUNNER_TEMP/w" --yes --name wincli --type cli --lang rust \
+            --repo example/wincli --targets "windows-x64 linux-x64"
+          ! grep -rnoE '\{\{[A-Z_]+\}\}' "$RUNNER_TEMP/w"
+      - name: PowerShell parses install.ps1
+        shell: pwsh
+        run: |
+          $errs = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$env:RUNNER_TEMP\w\install.ps1", [ref]$null, [ref]$errs) | Out-Null
+          if ($errs) { $errs; exit 1 }
+      - name: Shipped tests (scripts + Rust updater)
+        run: cd "$RUNNER_TEMP/w" && git init -q && sh tests/shipcrate/run.sh
