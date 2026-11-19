@@ -1,0 +1,11 @@
+<nav class="nav"><div class="wrap">
+  <a class="logo" href="{{ '/' | relative_url }}"><i></i>shipcrate</a>
+  <ul>
+    <li><a href="{{ '/' | relative_url }}#how">How it works</a></li>
+    <li><a href="{{ '/quickstart/' | relative_url }}" {% if page.url == '/quickstart/' %}class="on"{% endif %}>Quick start</a></li>
+    <li><a href="{{ '/integrating/' | relative_url }}" {% if page.url == '/integrating/' %}class="on"{% endif %}>Integrating</a></li>
+    <li><a href="{{ '/platforms/' | relative_url }}" {% if page.url == '/platforms/' %}class="on"{% endif %}>Platforms</a></li>
+    <li><a href="{{ '/security/' | relative_url }}" {% if page.url == '/security/' %}class="on"{% endif %}>Security</a></li>
+  </ul>
+  <a class="star" href="https://github.com/simarpreetsingh-019/shipcrate" title="Opens GitHub: click ★ Star there">★ Star on GitHub ↗ <b data-stars>–</b></a>
+</div></nav>

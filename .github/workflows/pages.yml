@@ -1,0 +1,44 @@
+# Builds the website (docs/ + SECURITY.md + CONTRIBUTING.md) with one shared design and deploys it to GitHub Pages.
+name: Pages
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**", "SECURITY.md", "CONTRIBUTING.md", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble the site
+        run: |
+          mkdir -p site && cp -R docs/. site/
+          B=https://github.com/simarpreetsingh-019/shipcrate/blob/main
+          for f in SECURITY CONTRIBUTING; do
+            out="site/$(echo "$f" | tr 'A-Z' 'a-z').md"
+            sed -e "s#](docs/PLATFORMS.md)#](../platforms/)#g; s#](docs/INTEGRATING.md)#](../integrating/)#g" \
+                -e "s#](templates/#]($B/templates/#g; s#](LICENSE)#]($B/LICENSE)#g; s#](tests/#]($B/tests/#g" "$f.md" > "$out"
+          done
+      - uses: actions/configure-pages@v5
+      - uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./site
+          destination: ./_site
+      - uses: actions/upload-pages-artifact@v3
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
