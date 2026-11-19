@@ -3,7 +3,8 @@
 **Release and update tooling for your products, in one command.** shipcrate drops a tested release system into
 any repo: a quality gate with git hooks and CI, a one-command release script, GitHub releases with SHA-256
 checksums and build provenance, a Homebrew formula or cask, an installer that verifies what it downloads, and
-update notices for macOS apps and command-line tools. Plain POSIX shell plus `git` and `gh`; nothing to install.
+update notices for macOS apps and command-line tools on macOS, Linux and Windows, with security guardrails and tests
+that ship into your project. Plain POSIX shell plus `git` and `gh`; nothing to install.
 
 It's extracted from the release system of [Thermo](https://github.com/simarpreetsingh-019/Thermo), a macOS notch
 system monitor, and made generic. Works by hand, and by AI coding agents through the included skills.
@@ -20,7 +21,11 @@ sh scripts/release.sh 0.1.0 --dry-run          # build + show the release notes,
 sh scripts/release.sh 0.1.0                    # asks, then tags, pushes, releases, bumps the tap
 ```
 
-Non-interactive: `shipcrate init DIR --yes --name N --type app|cli --lang rust|swift|python|node --repo OWNER/REPO [--tap OWNER/homebrew-N|none] [--desc TEXT] [--bundle-id ID]`.
+Non-interactive: `shipcrate init DIR --yes --name N --type app|cli --lang rust|swift|python|node --repo OWNER/REPO [--targets "macos-arm64 linux-x64 windows-x64"] [--tap OWNER/homebrew-N|none] [--desc TEXT] [--bundle-id ID]`.
+
+Already have releases or a notification system? See [docs/INTEGRATING.md](docs/INTEGRATING.md): take only the parts
+you need, send update notices through your own channels, or have each release POST to your push server.
+Platforms: [docs/PLATFORMS.md](docs/PLATFORMS.md).
 
 ## What you get
 
@@ -29,11 +34,13 @@ Non-interactive: `shipcrate init DIR --yes --name N --type app|cli --lang rust|s
 | `release.conf` | All settings: names, repo, tap, build command, artifact, how to set the version. No secrets. |
 | `scripts/check.sh` | The one quality gate: build, tests, secret scan, blocks key/model files and files > 5 MB, lint, dependency audit (Rust, Swift, Python, Node steps). `--quick` / default / `--release`. |
 | `.githooks/` + `scripts/install-hooks.sh` | pre-commit runs `--quick`, pre-push runs the full gate. |
-| `scripts/release.sh` | gate → set version → build → zip/tar.gz → SHA-256 → GitHub release with "What's new" (from CHANGELOG) and the checksum → Homebrew tap bump. `--dry-run`, `--security`, asks before publishing. |
+| `scripts/release.sh` | guardrails → gate → set version → build → SHA-256 → `latest.json` → GitHub release with "What's new" → Homebrew tap → webhook. `--dry-run`, `--security`, asks before publishing. |
 | `.github/workflows/ci.yml` | Runs the gate on every push and PR. |
-| `.github/workflows/release.yml` | On a `v*` tag: build, publish, `actions/attest-build-provenance`. Or attests the file you uploaded. |
-| `install.sh` | For people without Homebrew: downloads the latest release, checks SHA-256 (and attestation if `gh` is there), installs. |
-| `packaging/homebrew/*.rb` | Formula (CLI) or cask (app). |
+| `.github/workflows/release.yml` | On a `v*` tag: builds every target on its own runner, verifies the checksums, writes `latest.json` + `SHA256SUMS`, attests the files, publishes, and calls your webhook (optional). |
+| `install.sh`, `install.ps1` | For people without Homebrew (macOS/Linux, Windows): reads `latest.json`, downloads the build for that machine, checks SHA-256 (and the attestation if `gh` is installed), installs. |
+| `packaging/homebrew/*.rb` | Formula with a checksum per platform (CLI), or a cask (app). |
+| `tests/shipcrate/` | Tests that run in your gate: a good release installs and a tampered one is refused; updater host, checksum, upgrade and rollback rules. |
+| `SECURITY.md` | Your project's security policy: reporting, release protections, privacy of the update check. |
 | `updater/` | Update check code for your language (below). |
 | `CHANGELOG.md`, `RELEASING.md` | Templates for your project. |
 
@@ -78,6 +85,10 @@ the gate before releasing.
 
 ## Security
 
+Full details: [SECURITY.md](SECURITY.md).
+
+- **Guardrails:** releases only from the default branch, with green CI for that commit, a CHANGELOG entry, a newer version and a clean tree. In release mode the gate can't skip tests, audits or security checks.
+- **Workflow checks:** least-privilege permissions, no `pull_request_target`, no echoed secrets, third-party actions pinned to a commit SHA.
 - **Checksums:** every release ships `<asset>.sha256`; the installer and updaters refuse a download that doesn't match.
 - **Provenance:** `actions/attest-build-provenance` signs each release file. Verify: `gh attestation verify <file> --repo OWNER/REPO`.
 - **No telemetry:** the update check is one anonymous GET to `api.github.com/repos/OWNER/REPO/releases/latest`, at most once a day, with a generic User-Agent. Nothing about the user or machine is sent. Opt out with the env var.

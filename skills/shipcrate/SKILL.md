@@ -14,6 +14,7 @@ Everything is plain POSIX shell plus `git` and the GitHub CLI `gh`.
   or editing anything outside the current repo. A request to "set it up" is not approval to publish.
 - **Never put tokens or passwords in files**, commands, workflow YAML or release notes. Local auth is `gh auth login`;
   Actions use `${{ github.token }}`. If a secret is needed, tell the user to add it as a repository secret.
+- **Don't weaken guardrails** (release-mode gate, branch/CI checks, workflow lint, shipped tests in `tests/shipcrate/`) to make a release pass. Fix the cause, or ask the user.
 - **Run the gate before releasing:** `sh scripts/check.sh --release` must pass. Don't skip hooks (`--no-verify`) to get past it.
 - Don't overwrite existing files without asking; `shipcrate init` already skips them unless told otherwise.
 - Update checks stay anonymous: one GET to GitHub's latest-release API, at most daily, no telemetry, opt-out env var.
@@ -30,6 +31,9 @@ Everything is plain POSIX shell plus `git` and the GitHub CLI `gh`.
    ```
 4. Open `release.conf` and make `BUILD_CMD`, `ARTIFACT` and `VERSION_CMD` match the project (read its build files).
 5. `sh scripts/install-hooks.sh` and `sh scripts/check.sh`; fix what fails.
+   For CLIs, pick platforms with `--targets "macos-arm64 macos-x64 linux-x64 linux-arm64 windows-x64"`.
+   If the project already has a notification system or push server, read docs/INTEGRATING.md in the shipcrate
+   clone: use `check()` / `onUpdateAvailable` and the release webhook instead of the built-in notice.
 6. Wire the update check from `updater/` into the code (instructions at the top of each file):
    - Swift app: `Updater.swift` + `UpdateButton` in the UI, `announceLaunch()` at start.
    - Rust/Python/Node CLI: call `notify(version)` after interactive commands; add an `upgrade [--rollback]` command.
@@ -45,4 +49,5 @@ Everything is plain POSIX shell plus `git` and the GitHub CLI `gh`.
 ## Files it adds
 
 `release.conf` · `scripts/{check,release,build-release,release-notes,install-hooks}.sh` · `.githooks/` ·
-`.github/workflows/{ci,release}.yml` · `install.sh` · `packaging/homebrew/<name>.rb` · `updater/` · `CHANGELOG.md` · `RELEASING.md`
+`scripts/{lib,manifest,notify,ci-tools}.sh` · `.github/workflows/{ci,release}.yml` · `install.sh` (+ `install.ps1` for Windows targets) ·
+`packaging/homebrew/<name>.rb` · `updater/` · `tests/shipcrate/` · `SECURITY.md` · `CHANGELOG.md` · `RELEASING.md`

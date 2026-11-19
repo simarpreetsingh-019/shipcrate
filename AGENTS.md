@@ -11,6 +11,8 @@ a Homebrew formula or cask, and update-notice code (`updater/`) for Swift apps a
 - Ask the user before creating repos or taps, pushing, tagging or publishing a release.
 - Never write tokens, passwords or keys into any file, command or workflow. Use `gh auth login` / `${{ github.token }}`.
 - Run `sh scripts/check.sh --release` before releasing; don't bypass hooks.
+- Don't weaken guardrails or delete `tests/shipcrate/` to get a release through; fix the cause or ask.
+- Existing notification system? Use `check()` / `onUpdateAvailable` and the release webhook (docs/INTEGRATING.md).
 - Preview with `--dry-run` first; never overwrite files without asking.
 - Update checks: one anonymous GET to GitHub per day at most, no telemetry, opt-out env var, skipped in CI and without a TTY.
 

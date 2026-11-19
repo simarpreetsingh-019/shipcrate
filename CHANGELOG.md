@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.0] - 2026-11-20
+
+### Added
+- Multi-platform CLIs: `TARGETS` (macOS, Linux, Windows; x64 and arm64) built natively per CI runner; per-platform Homebrew checksums; `install.ps1` for Windows.
+- `latest.json` release manifest and `SHA256SUMS`; installers and all updaters read the manifest; mirrors supported.
+- Integration with existing notification systems: `check()` / `onUpdateAvailable` hooks and a signed release webhook (`scripts/notify.sh`).
+- Guardrails: strict release-mode gate, workflow lint, release checks (branch, CI green, CHANGELOG, newer version), SECURITY.md template.
+- Shipped tests (`tests/shipcrate/`): installer tamper test, updater host/checksum/upgrade/rollback tests for Swift, Rust, Python, Node.
+- Docs: INTEGRATING.md, PLATFORMS.md, SECURITY.md.
+
 ## [0.1.0] - 2026-11-20
 
 ### Added
