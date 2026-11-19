@@ -1,89 +1,301 @@
 <!doctype html>
 <html lang="en">
+<script>document.documentElement.classList.add("js")</script>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>shipcrate: release and update tooling in one command</title>
-<meta name="description" content="Drop a tested release system into any repo: quality gate, GitHub releases with checksums and provenance, Homebrew, installers, update checks for macOS, Linux and Windows, plus AI agent skills.">
-<meta property="og:title" content="shipcrate">
+<title>shipcrate — Ship it. Safely. Everywhere.</title>
+<meta name="description" content="Release and update tooling for your products, in one command. Quality gate, checksums, provenance, Homebrew, installers and update checks for macOS, Linux and Windows.">
+<meta property="og:title" content="shipcrate — Ship it. Safely. Everywhere.">
 <meta property="og:description" content="Release and update tooling for your products, in one command.">
+<meta name="theme-color" content="#000000">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root { --bg:#fbfaf7; --fg:#1d1d1f; --muted:#5e5e66; --card:#ffffff; --line:#e6e3dc; --accent:#d9480f; --code:#f3f1ec; }
-@media (prefers-color-scheme: dark) { :root { --bg:#141416; --fg:#ececef; --muted:#a0a0aa; --card:#1c1c20; --line:#2c2c33; --accent:#ff8a4c; --code:#232329; } }
-* { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
-.wrap { max-width:960px; margin:0 auto; padding:0 20px; }
-header { padding:72px 0 40px; }
-h1 { font-size:clamp(40px,7vw,64px); line-height:1.05; margin:0 0 12px; letter-spacing:-0.02em; }
-h1 span { color:var(--accent); }
-.lead { font-size:20px; color:var(--muted); max-width:640px; margin:0 0 28px; }
-.btns a { display:inline-block; margin:0 10px 10px 0; padding:10px 18px; border-radius:10px; text-decoration:none; font-weight:600; border:1px solid var(--line); color:var(--fg); }
-.btns a.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
-pre { background:var(--code); border:1px solid var(--line); border-radius:12px; padding:16px; overflow-x:auto; font:14px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
-code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.92em; }
-h2 { font-size:28px; margin:56px 0 16px; letter-spacing:-0.01em; }
-.grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
-.card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; }
-.card h3 { margin:0 0 6px; font-size:17px; }
-.card p { margin:0; color:var(--muted); font-size:15px; }
-table { width:100%; border-collapse:collapse; font-size:15px; }
-th, td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); }
-a { color:var(--accent); }
-footer { margin:72px 0 40px; padding-top:24px; border-top:1px solid var(--line); color:var(--muted); font-size:15px; }
+:root{
+  --bg:#ffffff; --bg2:#f5f5f7; --fg:#1d1d1f; --muted:#6e6e73; --line:rgba(0,0,0,.08);
+  --card:#f5f5f7; --a1:#ff5f1f; --a2:#ff2d78; --a3:#7b5cff; --ok:#30d158;
+  --term:#0b0b0f; --termfg:#e8e8ee; --shadow:0 30px 80px -20px rgba(0,0,0,.25);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#000000; --bg2:#0b0b0d; --fg:#f5f5f7; --muted:#8e8e93; --line:rgba(255,255,255,.1);
+  --card:#111114; --term:#0e0e12; --shadow:0 30px 100px -20px rgba(255,95,31,.18);
+}}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--fg);font:17px/1.5 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+code,.mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+.wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+.grad{background:linear-gradient(100deg,var(--a1),var(--a2) 50%,var(--a3));-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* nav */
+nav{position:sticky;top:0;z-index:50;backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);background:color-mix(in srgb,var(--bg) 72%,transparent);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:52px}
+.logo{font-weight:700;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.logo i{width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,var(--a1),var(--a2),var(--a3));display:inline-block}
+nav ul{display:flex;gap:26px;list-style:none;font-size:13px;color:var(--muted)}
+nav ul a:hover{color:var(--fg)}
+.pill{font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;background:var(--fg);color:var(--bg)}
+@media(max-width:640px){nav ul{display:none}}
+
+/* hero */
+.hero{text-align:center;padding:110px 0 40px;position:relative}
+.glow{position:absolute;inset:-120px 0 auto;height:620px;z-index:-1;background:radial-gradient(600px 300px at 50% 30%,rgba(255,95,31,.18),transparent 70%),radial-gradient(500px 260px at 70% 50%,rgba(123,92,255,.16),transparent 70%),radial-gradient(500px 260px at 30% 55%,rgba(255,45,120,.12),transparent 70%);filter:blur(10px)}
+.eyebrow{display:inline-flex;gap:8px;align-items:center;font-size:13px;font-weight:500;color:var(--muted);border:1px solid var(--line);padding:6px 14px;border-radius:999px;margin-bottom:28px}
+.eyebrow b{color:var(--fg);font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok)}
+h1{font-size:clamp(52px,10vw,112px);line-height:.98;letter-spacing:-.045em;font-weight:800}
+.sub{font-size:clamp(19px,2.4vw,24px);color:var(--muted);max-width:640px;margin:26px auto 0;letter-spacing:-.01em}
+.cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:38px}
+.btn{font-weight:600;font-size:16px;padding:13px 24px;border-radius:999px;transition:transform .2s,opacity .2s}
+.btn:hover{transform:translateY(-1px)}
+.btn.p{background:linear-gradient(100deg,var(--a1),var(--a2));color:#fff;box-shadow:0 10px 30px -8px rgba(255,45,120,.5)}
+.btn.s{border:1px solid var(--line);color:var(--fg)}
+.cmd{display:inline-flex;align-items:center;gap:14px;margin-top:26px;padding:10px 10px 10px 18px;border:1px solid var(--line);border-radius:14px;background:var(--bg2);font-size:13.5px;max-width:100%}
+.cmd code{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.cmd code b{color:var(--fg);font-weight:500}
+.copy{border:0;cursor:pointer;font:600 12px Inter,sans-serif;padding:7px 12px;border-radius:9px;background:var(--fg);color:var(--bg);flex:none}
+
+/* terminal */
+.term{max-width:820px;margin:70px auto 0;border-radius:18px;background:var(--term);color:var(--termfg);box-shadow:var(--shadow);border:1px solid rgba(255,255,255,.08);overflow:hidden;text-align:left}
+.bar{display:flex;gap:7px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.06)}
+.bar span{width:11px;height:11px;border-radius:50%;background:#3a3a40}
+.bar span:nth-child(1){background:#ff5f57}.bar span:nth-child(2){background:#febc2e}.bar span:nth-child(3){background:#28c840}
+.bar em{margin-left:auto;font-style:normal;font-size:12px;color:#6b6b75}
+#screen{padding:22px 24px 26px;font:13.5px/1.75 "JetBrains Mono",monospace;min-height:356px;white-space:pre-wrap;word-break:break-word}
+#screen .c{color:#6b6b75}#screen .g{color:#30d158}#screen .o{color:#ff8a4c}#screen .p{color:#c4b5ff}#screen .w{color:#fff;font-weight:500}
+.caret{display:inline-block;width:8px;height:16px;background:#ff8a4c;vertical-align:-3px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* sections */
+section{padding:130px 0}
+.kicker{font-size:15px;font-weight:600;letter-spacing:.02em}
+h2{font-size:clamp(38px,6vw,64px);line-height:1.04;letter-spacing:-.04em;font-weight:800;margin-top:12px}
+.lede{font-size:21px;color:var(--muted);max-width:620px;margin-top:20px;letter-spacing:-.01em}
+.center{text-align:center}.center .lede{margin-left:auto;margin-right:auto}
+
+/* pipeline */
+.pipe{position:relative;display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:70px}
+.pipe:before{content:"";position:absolute;top:27px;left:7%;right:7%;height:2px;background:var(--line)}
+.pipe .fill{position:absolute;top:27px;left:7%;height:2px;width:0;background:linear-gradient(90deg,var(--a1),var(--a2),var(--a3));transition:width 2.4s cubic-bezier(.2,.7,.2,1)}
+.pipe.on .fill{width:86%}
+.st{position:relative;text-align:center}
+.st i{width:56px;height:56px;margin:0 auto;border-radius:18px;display:grid;place-items:center;background:var(--bg);border:1px solid var(--line);font-style:normal;font-size:15px;font-weight:700;font-family:"JetBrains Mono",monospace;transition:transform .5s,border-color .5s,box-shadow .5s}
+.pipe.on .st i{border-color:transparent;box-shadow:0 0 0 1px rgba(255,95,31,.5),0 10px 30px -10px rgba(255,45,120,.5)}
+.st b{display:block;margin-top:16px;font-size:15px;letter-spacing:-.01em}
+.st small{display:block;color:var(--muted);font-size:12.5px;margin-top:4px;line-height:1.35}
+@media(max-width:760px){.pipe{grid-template-columns:1fr;gap:22px}.pipe:before,.pipe .fill{display:none}.st{display:flex;gap:16px;text-align:left;align-items:center}.st i{margin:0;flex:none}.st b{margin-top:0}}
+
+/* bento */
+.bento{display:grid;grid-template-columns:repeat(6,1fr);gap:16px;margin-top:64px}
+.tile{background:var(--card);border-radius:28px;padding:34px;position:relative;overflow:hidden;min-height:260px;border:1px solid var(--line)}
+.tile h3{font-size:28px;line-height:1.1;letter-spacing:-.03em;font-weight:700}
+.tile p{color:var(--muted);margin-top:12px;font-size:16px;max-width:420px}
+.t4{grid-column:span 4}.t2{grid-column:span 2}.t3{grid-column:span 3}
+@media(max-width:860px){.t4,.t2,.t3{grid-column:span 6}}
+.os{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}
+.os span{font-size:13px;font-weight:600;padding:8px 14px;border-radius:999px;background:var(--bg);border:1px solid var(--line)}
+.big{font-size:84px;font-weight:800;letter-spacing:-.05em;line-height:1;margin-top:18px}
+.notice{margin-top:26px;font:12.5px/1.6 "JetBrains Mono",monospace;background:var(--term);color:var(--termfg);border-radius:14px;padding:14px 16px}
+.notice .o{color:#ff8a4c}.notice .red{color:#ff6b6b}
+.update{display:inline-flex;align-items:center;gap:8px;margin-top:26px;background:#ff9f0a;color:#fff;font-weight:600;font-size:14px;padding:8px 16px;border-radius:999px;box-shadow:0 8px 24px -8px rgba(255,159,10,.7)}
+.agents{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+.agents span{font-size:13px;padding:7px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--line);font-family:"JetBrains Mono",monospace}
+.flow{margin-top:26px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;font-weight:600}
+.flow span{padding:8px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--line)}
+.flow em{font-style:normal;color:var(--muted)}
+
+/* security */
+.dark{background:#000;color:#f5f5f7}
+.dark .lede{color:#8e8e93}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:70px}
+@media(max-width:760px){.stats{grid-template-columns:1fr}}
+.stat{border-radius:28px;padding:34px;background:#0e0e11;border:1px solid rgba(255,255,255,.08)}
+.stat .n{font-size:clamp(48px,6vw,64px);white-space:nowrap;font-weight:800;letter-spacing:-.05em;line-height:1}
+.stat p{color:#8e8e93;margin-top:14px;font-size:16px}
+.checks{display:grid;grid-template-columns:repeat(2,1fr);gap:14px 40px;margin-top:56px;font-size:16px}
+@media(max-width:760px){.checks{grid-template-columns:1fr}}
+.checks div{display:flex;gap:12px;color:#d1d1d6}
+.checks div:before{content:"✓";color:#30d158;font-weight:700}
+
+/* final */
+.final h2{font-size:clamp(40px,7vw,76px)}
+.links{display:flex;gap:30px;justify-content:center;flex-wrap:wrap;margin-top:44px;font-weight:600}
+.links a{color:var(--a1)}
+.links a:hover{text-decoration:underline}
+footer{border-top:1px solid var(--line);padding:40px 0 56px;color:var(--muted);font-size:13px}
+footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+footer a:hover{color:var(--fg)}
+footer nav{all:unset;display:flex;gap:20px;flex-wrap:wrap}
+
+/* reveal */
+.js .r{opacity:0;transform:translateY(28px);transition:opacity 1s cubic-bezier(.2,.7,.2,1),transform 1s cubic-bezier(.2,.7,.2,1)}
+.js .r.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.js .r{opacity:1;transform:none;transition:none}.pipe .fill{transition:none}.caret{animation:none}}
 </style>
 </head>
 <body>
-<div class="wrap">
-<header>
-  <h1>ship<span>crate</span></h1>
-  <p class="lead">Release and update tooling for your products, in one command. Quality gate, GitHub releases with checksums and provenance, Homebrew, installers and update checks for macOS, Linux and Windows. Works by hand and with AI coding agents.</p>
-  <div class="btns">
-    <a class="primary" href="https://github.com/simarpreetsingh-019/shipcrate">View on GitHub</a>
-    <a href="https://github.com/simarpreetsingh-019/shipcrate/releases/latest">Latest release</a>
-    <a href="https://github.com/simarpreetsingh-019/shipcrate/stargazers">⭐ Star it</a>
+
+<nav><div class="wrap">
+  <a class="logo" href="#"><i></i>shipcrate</a>
+  <ul><li><a href="#how">How it works</a></li><li><a href="#features">Features</a></li><li><a href="#security">Security</a></li><li><a href="INTEGRATING.html">Docs</a></li></ul>
+  <a class="pill" href="https://github.com/simarpreetsingh-019/shipcrate">★ Star on GitHub</a>
+</div></nav>
+
+<header class="hero"><div class="glow"></div><div class="wrap">
+  <div class="eyebrow r"><span class="dot"></span><b>v0.2</b> Now on macOS, Linux and Windows</div>
+  <h1 class="r">Ship it.<br><span class="grad">Safely. Everywhere.</span></h1>
+  <p class="sub r">Release and update tooling for your products, in one command. Checked, signed for provenance and ready for every platform before you even push.</p>
+  <div class="cta r">
+    <a class="btn p" href="#start">Get started</a>
+    <a class="btn s" href="https://github.com/simarpreetsingh-019/shipcrate">View on GitHub</a>
   </div>
-<pre><code>git clone https://github.com/simarpreetsingh-019/shipcrate ~/.shipcrate
-cd your-project
-~/.shipcrate/bin/shipcrate init --dry-run     # see what it would write
-~/.shipcrate/bin/shipcrate init               # name, app/cli, language, repo, platforms
-sh scripts/release.sh 0.1.0 --dry-run         # build + notes, publishes nothing</code></pre>
-</header>
+  <div class="r"><div class="cmd"><code><b>git clone</b> https://github.com/simarpreetsingh-019/shipcrate ~/.shipcrate</code><button class="copy" data-copy="git clone https://github.com/simarpreetsingh-019/shipcrate ~/.shipcrate">Copy</button></div></div>
 
-<h2>What you get</h2>
-<div class="grid">
-  <div class="card"><h3>One quality gate</h3><p>Build, tests, secret scan, lint and dependency audit for Rust, Swift, Python and Node. It runs on every commit, push, CI run and release.</p></div>
-  <div class="card"><h3>One-command releases</h3><p>Guardrails, then build, SHA-256, <code>latest.json</code>, GitHub release with "What's new", Homebrew tap bump and webhook.</p></div>
-  <div class="card"><h3>Every platform</h3><p>Native CI builds for macOS, Linux and Windows on x64 and arm64. Per-platform Homebrew checksums, plus <code>install.sh</code> and <code>install.ps1</code>.</p></div>
-  <div class="card"><h3>Update checks</h3><p>An in-app Update button for Swift apps. For Rust, Python and Node CLIs: a once-a-day notice and <code>upgrade</code> with rollback.</p></div>
-  <div class="card"><h3>Your notifications</h3><p>Hooks for your own notification UI, a signed webhook to your push server, or a manifest your servers can poll.</p></div>
-  <div class="card"><h3>Agent-ready</h3><p>Skills for Claude Code and Codex, plus AGENTS.md and a Cursor rule. Agents ask before they push or publish.</p></div>
-</div>
+  <div class="term r" aria-label="Example release run">
+    <div class="bar"><span></span><span></span><span></span><em>~/msh — zsh</em></div>
+    <div id="screen"></div>
+  </div>
+</div></header>
 
-<h2>Security built in</h2>
-<table>
-  <tr><th>Guard</th><th>What it does</th></tr>
-  <tr><td>Release guardrails</td><td>Releases only from the default branch, with green CI for that commit, a CHANGELOG entry, a newer version and a clean tree.</td></tr>
-  <tr><td>Strict release gate</td><td>Nothing can be skipped: tests, audits, secret scan and workflow lint must all pass.</td></tr>
-  <tr><td>Checksums + provenance</td><td>SHA-256 for every file and <code>actions/attest-build-provenance</code>. Tampered downloads are refused.</td></tr>
-  <tr><td>Shipped tests</td><td>Every project gets tests that prove a tampered release can't install and that upgrade and rollback work.</td></tr>
-  <tr><td>No telemetry</td><td>The update check is one anonymous GET, at most daily, never in CI, and you can turn it off.</td></tr>
-</table>
+<section id="how"><div class="wrap center">
+  <div class="kicker grad r">How it works</div>
+  <h2 class="r">One command.<br>Seven careful steps.</h2>
+  <p class="lede r">Every release takes the same path, so a release can't skip a step, whether you or an AI agent starts it.</p>
+  <div class="pipe" id="pipe">
+    <div class="fill"></div>
+    <div class="st"><i>01</i><div><b>Guard</b><small>Main branch, green CI, newer version</small></div></div>
+    <div class="st"><i>02</i><div><b>Gate</b><small>Tests, audit, secret scan</small></div></div>
+    <div class="st"><i>03</i><div><b>Build</b><small>Every platform, natively</small></div></div>
+    <div class="st"><i>04</i><div><b>Verify</b><small>SHA-256 and provenance</small></div></div>
+    <div class="st"><i>05</i><div><b>Release</b><small>With "What's new"</small></div></div>
+    <div class="st"><i>06</i><div><b>Homebrew</b><small>Tap bumped for you</small></div></div>
+    <div class="st"><i>07</i><div><b>Notify</b><small>Apps, CLIs, your servers</small></div></div>
+  </div>
+</div></section>
 
-<h2>Read more</h2>
-<div class="grid">
-  <div class="card"><h3><a href="INTEGRATING.html">Integrating</a></h3><p>Existing release process or notification system? Take only the parts you need.</p></div>
-  <div class="card"><h3><a href="PLATFORMS.html">Platforms</a></h3><p>Targets, runners, Windows, and code signing.</p></div>
-  <div class="card"><h3><a href="https://github.com/simarpreetsingh-019/shipcrate/blob/main/SECURITY.md">Security</a></h3><p>What shipcrate guarantees, and its known limits.</p></div>
-  <div class="card"><h3><a href="https://github.com/simarpreetsingh-019/shipcrate/blob/main/CONTRIBUTING.md">Contributing</a></h3><p>Add a language or platform, or fix a bug.</p></div>
-</div>
+<section id="features" style="background:var(--bg2)"><div class="wrap">
+  <div class="kicker grad r">Features</div>
+  <h2 class="r">Everything a release needs.<br>Nothing it doesn't.</h2>
+  <div class="bento">
+    <div class="tile t4 r">
+      <h3>Every platform.<br>Built where it runs.</h3>
+      <p>Each target builds on its own native CI machine. You get per-platform Homebrew checksums and installers for every OS.</p>
+      <div class="os"><span>macOS arm64</span><span>macOS x64</span><span>Linux x64</span><span>Linux arm64</span><span>Windows x64</span><span>Windows arm64</span></div>
+    </div>
+    <div class="tile t2 r">
+      <h3>Zero</h3>
+      <p>dependencies. Plain shell, <code>git</code> and <code>gh</code>.</p>
+      <div class="big grad">0</div>
+    </div>
+    <div class="tile t3 r">
+      <h3>Updates your users will notice.</h3>
+      <p>In the app, an Update button. In the terminal, one quiet line a day at most, and a loud one for security fixes.</p>
+      <span class="update">↓ Update</span>
+      <div class="notice">msh 0.3.0 is available · <span class="o">msh upgrade</span><br><span class="red">⚠ SECURITY UPDATE:</span> msh 0.3.1 fixes a security issue</div>
+    </div>
+    <div class="tile t3 r">
+      <h3>Works with your notifications.</h3>
+      <p>Show updates in your own UI, get a signed webhook on your push server, or have it poll one manifest.</p>
+      <div class="flow"><span>release</span><em>→</em><span>latest.json</span><em>→</em><span>your server</span><em>→</em><span>APNs · FCM · email</span></div>
+    </div>
+    <div class="tile t2 r">
+      <h3>Rollback,<br>built in.</h3>
+      <p>Upgrades swap atomically and keep the previous version. One command undoes it.</p>
+    </div>
+    <div class="tile t4 r">
+      <h3>Agent-ready.</h3>
+      <p>Skills for your AI coding agent. They set up, test and release your project, and they ask before they publish anything.</p>
+      <div class="agents"><span>Claude Code</span><span>Codex</span><span>Cursor</span><span>AGENTS.md</span><span>Copilot</span><span>Gemini</span></div>
+    </div>
+  </div>
+</div></section>
 
-<footer>
-  Made by <b>Simarpreet Singh</b> ·
-  <a href="https://simarpreetsingh-019.github.io">Portfolio</a> ·
-  <a href="https://x.com/simarpreet_019">@simarpreet_019</a> ·
-  <a href="mailto:simarpreetsingh.019@gmail.com">Email</a> ·
-  MIT License. Grew out of <a href="https://github.com/simarpreetsingh-019/Thermo">Thermo</a>.
-</footer>
-</div>
+<section id="security" class="dark"><div class="wrap">
+  <div class="kicker grad r">Security</div>
+  <h2 class="r">Trust is the feature.</h2>
+  <p class="lede r">Every file is checked, attested and tested before anyone can install it, and nothing reports back about your users.</p>
+  <div class="stats">
+    <div class="stat r"><div class="n grad">SHA-256</div><p>For every file, in every release. A tampered download is refused.</p></div>
+    <div class="stat r"><div class="n grad">100%</div><p>Of releases pass the full gate. In release mode, no check can be skipped.</p></div>
+    <div class="stat r"><div class="n grad">0</div><p>Telemetry. One anonymous check a day, off with one variable.</p></div>
+  </div>
+  <div class="checks r">
+    <div>Build provenance attested for every file</div>
+    <div>Releases only from main, with green CI</div>
+    <div>Secret scan on every commit and push</div>
+    <div>Workflows locked to least privilege</div>
+    <div>Downloads only from your own releases</div>
+    <div>Tests shipped into every project</div>
+  </div>
+</div></section>
+
+<section id="start" class="final"><div class="wrap center">
+  <h2 class="r">Your next release is<br><span class="grad">one command away.</span></h2>
+  <div class="r"><div class="cmd"><code><b>~/.shipcrate/bin/shipcrate</b> init --dry-run</code><button class="copy" data-copy="~/.shipcrate/bin/shipcrate init --dry-run">Copy</button></div></div>
+  <div class="links r">
+    <a href="https://github.com/simarpreetsingh-019/shipcrate#quick-start">Quick start →</a>
+    <a href="INTEGRATING.html">Integrating →</a>
+    <a href="PLATFORMS.html">Platforms →</a>
+    <a href="https://github.com/simarpreetsingh-019/shipcrate/blob/main/SECURITY.md">Security →</a>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <div>Made by <b style="color:var(--fg)">Simarpreet Singh</b> · MIT License · Grew out of <a href="https://github.com/simarpreetsingh-019/Thermo">Thermo</a></div>
+  <nav>
+    <a href="https://simarpreetsingh-019.github.io">Portfolio</a>
+    <a href="https://x.com/simarpreet_019">X / Twitter</a>
+    <a href="mailto:simarpreetsingh.019@gmail.com">Email</a>
+    <a href="https://github.com/simarpreetsingh-019/shipcrate/blob/main/CONTRIBUTING.md">Contribute</a>
+  </nav>
+</div></footer>
+
+<script>
+// Reveal on scroll
+const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: 0.01, rootMargin: '0px 0px -8% 0px' });
+// Never leave content hidden if the observer doesn't fire (old browsers, background tabs)
+setTimeout(() => document.querySelectorAll('.r').forEach(el => el.classList.add('in')), 4000);
+document.querySelectorAll('.r').forEach((el, i) => { el.style.transitionDelay = (i % 6) * 70 + 'ms'; io.observe(el); });
+const pipe = document.getElementById('pipe');
+new IntersectionObserver(es => es.forEach(e => e.isIntersecting && pipe.classList.add('on')), { threshold: .4 }).observe(pipe);
+
+// Copy buttons
+document.querySelectorAll('.copy').forEach(b => b.addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'Copied'; } catch { b.textContent = 'Select'; }
+  setTimeout(() => b.textContent = 'Copy', 1600);
+}));
+
+// Terminal: replays a release run
+const lines = [
+  ['<span class="c">$</span> <span class="w">sh scripts/release.sh 0.3.0</span>', 0],
+  ['<span class="p">→</span> Guardrails', 500],
+  ['  <span class="g">✓</span> on main, in sync · CI green · CHANGELOG has 0.3.0', 350],
+  ['<span class="p">→</span> Quality gate <span class="c">(release mode)</span>', 450],
+  ['  <span class="g">✓</span> build  <span class="g">✓</span> tests  <span class="g">✓</span> clippy  <span class="g">✓</span> cargo audit  <span class="g">✓</span> secrets', 600],
+  ['<span class="p">→</span> Publish msh 0.3.0 to github.com/you/msh? <span class="w">y</span>', 700],
+  ['<span class="p">→</span> CI building <span class="o">5 targets</span> · macOS · Linux · Windows', 600],
+  ['  <span class="g">✓</span> SHA256SUMS · latest.json · provenance attested', 700],
+  ['<span class="p">→</span> Homebrew tap bumped · webhook delivered', 500],
+  ['<span class="g">✓ Released msh 0.3.0</span> <span class="c">github.com/you/msh/releases/tag/v0.3.0</span>', 500],
+];
+const screen = document.getElementById('screen');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+async function play() {
+  while (true) {
+    screen.innerHTML = '';
+    for (const [html, wait] of lines) {
+      await new Promise(r => setTimeout(r, reduce ? 0 : wait));
+      screen.insertAdjacentHTML('beforeend', html + '\n');
+    }
+    screen.insertAdjacentHTML('beforeend', '<span class="c">$</span> <span class="caret"></span>');
+    if (reduce) return;
+    await new Promise(r => setTimeout(r, 5000));
+  }
+}
+new IntersectionObserver((es, o) => es.forEach(e => { if (e.isIntersecting) { play(); o.disconnect(); } })).observe(screen);
+</script>
 </body>
 </html>
