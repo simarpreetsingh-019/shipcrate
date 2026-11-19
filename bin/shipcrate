@@ -12,12 +12,13 @@
 #   --tap OWNER/NAME   Homebrew tap repository (default OWNER/homebrew-<name>; "none" for no tap)
 #   --desc TEXT        one-line description (Homebrew desc)
 #   --bundle-id ID     app only: CFBundleIdentifier
+#   --targets "LIST"   cli: platforms to build, e.g. "macos-arm64 linux-x64 windows-x64" (default depends on language)
 #   --dry-run          print what would be written; write nothing
 #   --yes              don't ask: use defaults and skip files that already exist
 #   --force            with --yes: overwrite existing files (without --yes you are asked per file)
 # Dependency-free POSIX sh. Writes only inside the target directory; never touches the network.
 set -eu
-KIT_VERSION=0.1.0
+KIT_VERSION=0.2.0
 KIT=$(cd "$(dirname "$0")/.." && pwd)
 T="$KIT/templates"
 say() { printf '%s\n' "$*"; }
@@ -33,12 +34,12 @@ case "$cmd" in
   *) usage; exit 2 ;;
 esac
 
-TARGET=.; NAME=""; TYPE=""; KLANG=""; REPO=""; TAP=""; DESC=""; BUNDLE=""; DRY=0; YES=0; FORCE=0
+TARGET=.; NAME=""; TYPE=""; KLANG=""; REPO=""; TAP=""; DESC=""; BUNDLE=""; TARGETS=""; DRY=0; YES=0; FORCE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --name) NAME="${2:?}"; shift ;;  --type) TYPE="${2:?}"; shift ;;  --lang) KLANG="${2:?}"; shift ;;
     --repo) REPO="${2:?}"; shift ;;  --tap) TAP="${2:?}"; shift ;;    --desc) DESC="${2:?}"; shift ;;
-    --bundle-id) BUNDLE="${2:?}"; shift ;;
+    --bundle-id) BUNDLE="${2:?}"; shift ;;  --targets) TARGETS="${2:?}"; shift ;;
     --dry-run|-n) DRY=1 ;; --yes|-y) YES=1 ;; --force) FORCE=1 ;;
     -h|--help) usage; exit 0 ;;
     -*) die "unknown option $1" ;;
@@ -89,57 +90,86 @@ CLASS=$(printf '%s' "$TOKEN" | awk -F'[-_.]' '{for(i=1;i<=NF;i++) printf "%s%s",
 case "$CLASS" in [0-9]*) CLASS="A$CLASS" ;; esac
 ENVP=$(printf '%s' "$TOKEN" | tr 'a-z.-' 'A-Z__')
 if [ "$TYPE" = app ]; then
-  ASSET="$NAME.zip"; TAP_FILE="Casks/$TOKEN.rb"; RUNNER=macos-latest; BUILD_WHERE=local
+  TARGETS=macos; ASSET="$NAME.zip"; TAP_FILE="Casks/$TOKEN.rb"; RUNNER=macos-latest; BUILD_WHERE=local
   BUILD_CMD="sh build.sh"; ARTIFACT="build/$NAME.app"
   VERSION_CMD='/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $V" Info.plist'
 else
   TAP_FILE="Formula/$TOKEN.rb"; BUILD_WHERE=ci
   case "$KLANG" in
-    rust)   ASSET="$TOKEN-macos-arm64.tar.gz"; RUNNER=macos-latest
+    rust)   D_TARGETS="macos-arm64 macos-x64 linux-x64 linux-arm64 windows-x64"; ASSET="$TOKEN-{target}.tar.gz"; RUNNER=ubuntu-latest
             BUILD_CMD="cargo build --release --locked"; ARTIFACT="target/release/$BINARY"
             VERSION_CMD='sed -i.bak -E "1,/^version = /s/^version = \".*\"/version = \"$V\"/" Cargo.toml && rm -f Cargo.toml.bak && cargo update -w -q' ;;
-    swift)  ASSET="$TOKEN-macos-arm64.tar.gz"; RUNNER=macos-latest
+    swift)  D_TARGETS="macos-arm64 macos-x64 linux-x64"; ASSET="$TOKEN-{target}.tar.gz"; RUNNER=macos-latest
             BUILD_CMD="swift build -c release"; ARTIFACT=".build/release/$BINARY"
             VERSION_CMD="echo \"let appVersion = \\\"\$V\\\"\" > Sources/$BINARY/Version.swift" ;;
-    python) ASSET="$TOKEN.tar.gz"; RUNNER=ubuntu-latest
+    python) D_TARGETS="any"; ASSET="$TOKEN.tar.gz"; RUNNER=ubuntu-latest
             BUILD_CMD="mkdir -p build && python3 -m zipapp src -m \"$MODULE.__main__:main\" -p \"/usr/bin/env python3\" -o build/$BINARY"
             ARTIFACT="build/$BINARY"
             VERSION_CMD='sed -i.bak -E "1,/^version = /s/^version = \".*\"/version = \"$V\"/" pyproject.toml && rm -f pyproject.toml.bak' ;;
-    node)   ASSET="$TOKEN.tar.gz"; RUNNER=ubuntu-latest
+    node)   D_TARGETS="any"; ASSET="$TOKEN.tar.gz"; RUNNER=ubuntu-latest
             BUILD_CMD="npm ci --silent && npm run build --if-present --silent"; ARTIFACT="dist/$BINARY"
             VERSION_CMD='npm version "$V" --no-git-tag-version --allow-same-version' ;;
   esac
 fi
 
+if [ "$TYPE" = cli ]; then
+  TARGETS=${TARGETS:-$D_TARGETS}
+  for t in $TARGETS; do case "$t" in macos-arm64|macos-x64|linux-x64|linux-arm64|windows-x64|windows-arm64|any) ;; *) die "unknown target $t (use macos-arm64 macos-x64 linux-x64 linux-arm64 windows-x64 windows-arm64 any)" ;; esac; done
+  case " $TARGETS " in *" any "*) [ "$TARGETS" = any ] || die "'any' can't be combined with other targets" ;; esac
+  [ "$TARGETS" = any ] && ASSET=$(printf '%s' "$ASSET" | sed 's/-{target}//')
+fi
+
+# Homebrew formula url/sha256 lines per target (macOS and Linux; Homebrew doesn't do Windows).
+URLS=$(mktemp)
+fline() { a=$(printf '%s' "$ASSET" | sed "s/{target}/$2/g"); printf '%surl "https://github.com/%s/releases/download/v#{version}/%s"\n%ssha256 "%064d" # shipcrate:%s\n' "$1" "$REPO" "$a" "$1" 0 "$2"; }
+{
+  if [ "$TARGETS" = any ]; then fline "  " any
+  else
+    for os in macos linux; do
+      ts=""; for t in $TARGETS; do case "$t" in "$os"-*) ts="$ts $t" ;; esac; done
+      [ -n "$ts" ] || continue
+      printf '  on_%s do\n' "$os"
+      for t in $ts; do case "$t" in *-arm64) printf '    on_arm do\n' ;; *) printf '    on_intel do\n' ;; esac; fline "      " "$t"; printf '    end\n'; done
+      printf '  end\n'
+    done
+  fi
+} > "$URLS"
+
 # --- Fill placeholders: one sed script, values escaped for the | delimiter.
-SED=$(mktemp); trap 'rm -f "${SED:?}"' EXIT
+SED=$(mktemp); trap 'rm -f "${SED:?}" "${URLS:?}"' EXIT
 put() { printf 's|{{%s}}|%s|g\n' "$1" "$(printf '%s' "$2" | sed 's/[\\|&]/\\&/g')" >> "$SED"; }
 put PRODUCT "$NAME"; put TOKEN "$TOKEN"; put TYPE "$TYPE"; put LANG "$KLANG"; put REPO "$REPO"; put OWNER "$OWNER"
 put TAP_REPO "$TAP"; put TAP_FILE "$TAP_FILE"; put BINARY "$BINARY"; put BUNDLE_ID "${BUNDLE:-none}"; put ASSET "$ASSET"
 put BUILD_CMD "$BUILD_CMD"; put ARTIFACT "$ARTIFACT"; put VERSION_CMD "$VERSION_CMD"; put BUILD_WHERE "$BUILD_WHERE"
-put RUNNER "$RUNNER"; put CLASS "$CLASS"; put ENV "$ENVP"; put DESCRIPTION "$(printf '%s' "$DESC" | tr -d '"')"; put MODULE "$MODULE"
+put RUNNER "$RUNNER"; put CLASS "$CLASS"; put ENV "$ENVP"; put DESCRIPTION "$(printf '%s' "$DESC" | tr -d '"')"; put MODULE "$MODULE"; put TARGETS "$TARGETS"
 
 # --- File list: "template-path target-path" per line.
 LIST=$(cd "$T/common" && find . -type f | sed 's#^\./##' | sort | awk '{print "common/" $0 " " $0}')
 if [ "$TYPE" = app ]; then LIST="$LIST
 app/packaging/homebrew/cask.rb packaging/homebrew/$TOKEN.rb
-updaters/swift/Updater.swift updater/Updater.swift"
+updaters/swift/Updater.swift updater/Updater.swift
+updaters/tests/UpdaterTests.swift tests/shipcrate/UpdaterTests.swift"
 else LIST="$LIST
 cli/packaging/homebrew/formula.rb packaging/homebrew/$TOKEN.rb"
   case "$KLANG" in
     rust)   LIST="$LIST
 updaters/rust/update.rs updater/update.rs" ;;
     python) LIST="$LIST
-updaters/python/update_check.py updater/update_check.py" ;;
+updaters/python/update_check.py updater/update_check.py
+updaters/tests/test_update_check.py tests/shipcrate/test_update_check.py" ;;
     node)   LIST="$LIST
-updaters/node/update-check.js updater/update-check.js" ;;
+updaters/node/update-check.js updater/update-check.js
+updaters/tests/update-check.test.js tests/shipcrate/update-check.test.js" ;;
     swift)  LIST="$LIST
 updaters/rust/update.rs updater/REFERENCE-update.rs" ;;
   esac
 fi
 
+case " $TARGETS " in *" windows-"*) LIST="$LIST
+cli/install.ps1 install.ps1" ;; esac
+
 say "shipcrate $KIT_VERSION → $TARGET"
-say "  $NAME ($TYPE, $KLANG) · github.com/$REPO · tap: $TAP · asset: $ASSET"
+say "  $NAME ($TYPE, $KLANG) · github.com/$REPO · tap: $TAP · targets: $TARGETS"
 [ $DRY = 1 ] && say "  dry run: nothing will be written"
 WROTE=0; SKIPPED=0
 printf '%s\n' "$LIST" | while read -r src dst; do
@@ -155,7 +185,7 @@ printf '%s\n' "$LIST" | while read -r src dst; do
   fi
   if [ $DRY = 1 ]; then say "  would write         $dst"; continue; fi
   mkdir -p "$(dirname "$out")"
-  sed -f "$SED" "$T/$src" > "$out"
+  sed -f "$SED" "$T/$src" | awk -v f="$URLS" '/#SHIPCRATE_URLS/ {while ((getline l < f) > 0) print l; next} {print}' > "$out"
   case "$dst" in *.sh|.githooks/*) chmod 755 "$out" ;; esac
   say "  wrote               $dst"
 done

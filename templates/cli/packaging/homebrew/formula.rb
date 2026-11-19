@@ -4,8 +4,7 @@ class {{CLASS}} < Formula
   desc "{{DESCRIPTION}}"
   homepage "https://github.com/{{REPO}}"
   version "0.0.0"
-  url "https://github.com/{{REPO}}/releases/download/v#{version}/{{ASSET}}"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  #SHIPCRATE_URLS
   license "MIT"
 
   def install

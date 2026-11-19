@@ -11,10 +11,10 @@ check() { d="$1"; shift; if "$@" >/dev/null 2>"$WORK/err"; then ok "$d"; else ba
 has() { command -v "$1" >/dev/null 2>&1; }
 WORK=$(mktemp -d); trap 'rm -rf "${WORK:?}"' EXIT
 
-for combo in "app swift Thermo" "cli rust msh" "cli python pytool" "cli node nodetool" "cli swift swiftcli"; do
-  set -- $combo; TYPE=$1; L=$2; N=$3; D="$WORK/$N"; mkdir -p "$D"
-  echo "• init $N ($TYPE, $L)"
-  check "init runs" sh "$KIT/bin/shipcrate" init "$D" --yes --name "$N" --type "$TYPE" --lang "$L" --repo "example/$N" --desc "Test $N"
+for combo in "app swift Thermo" "cli rust msh" "cli python pytool" "cli node nodetool" "cli swift swiftcli" "cli rust wincli windows-x64_linux-x64"; do
+  set -- $combo; TYPE=$1; L=$2; N=$3; TG=$(echo "${4:-}" | tr _ ' '); D="$WORK/$N"; mkdir -p "$D"
+  echo "• init $N ($TYPE, $L${TG:+, $TG})"
+  check "init runs" sh "$KIT/bin/shipcrate" init "$D" --yes --name "$N" --type "$TYPE" --lang "$L" --repo "example/$N" --desc "Test $N" ${TG:+--targets "$TG"}
   left=$(grep -rnoE '\{\{[A-Z_]+\}\}' "$D" || true); [ -z "$left" ] && ok "no unfilled placeholders" || bad "unfilled placeholders: $left"
   for f in $(find "$D" -name '*.sh') "$D"/.githooks/*; do check "sh -n ${f#$D/}" sh -n "$f"; done
   ( . "$D/release.conf" ) && ok "release.conf sources" || bad "release.conf doesn't source"
@@ -29,6 +29,11 @@ for combo in "app swift Thermo" "cli rust msh" "cli python pytool" "cli node nod
     if [ "$(uname)" = Darwin ]; then check "swiftc -typecheck updater" swiftc -typecheck "$D/updater/Updater.swift"
     else check "swiftc -parse updater" swiftc -parse "$D/updater/Updater.swift"; fi
   fi
+  [ "$N" = wincli ] && { [ -f "$D/install.ps1" ] && ok "Windows target gets install.ps1" || bad "no install.ps1 for a Windows target"; }
+  [ "$N" = msh ] && { grep -q 'shipcrate:linux-arm64' "$D/packaging/homebrew/msh.rb" && ok "formula has per-platform checksums" || bad "formula lacks per-platform checksums"; }
+  if has pwsh && [ -f "$D/install.ps1" ]; then check "PowerShell parses install.ps1" pwsh -NoProfile -Command "\$null = [System.Management.Automation.Language.Parser]::ParseFile('$D/install.ps1', [ref]\$null, [ref]\$e); if (\$e) { \$e; exit 1 }"; fi
+  # The tests shipcrate ships into the project must pass in the fresh project.
+  ( cd "$D" && git init -q && git add -A ) && check "shipped tests pass (tests/shipcrate/run.sh)" sh "$D/tests/shipcrate/run.sh"
   ( cd "$D" && mkdir -p dist && echo "abc  x" > "dist/$(. ./release.conf; echo "$ASSET").sha256" && printf '## [1.0.0]\n- thing\n' > CHANGELOG.md &&
     sh scripts/release-notes.sh 1.0.0 --security | grep -q '\[security\]' && sh scripts/release-notes.sh 1.0.0 | grep -q 'thing' ) \
     && ok "release notes: What's new + security marker" || bad "release notes"

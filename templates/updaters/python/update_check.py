@@ -1,20 +1,23 @@
 """Update notice and `{{BINARY}} upgrade` for {{PRODUCT}} (from shipcrate). Standard library only.
 
-Privacy: at most once a day, one anonymous GET to GitHub's latest-release API. Nothing about the user or
-machine is sent; no telemetry. Off with {{ENV}}_NO_UPDATE_CHECK=1, and never in CI or without a terminal.
+Privacy: at most once a day, one anonymous GET of the release manifest (latest.json on GitHub Releases).
+Nothing about the user or machine is sent; no telemetry. Off with {{ENV}}_NO_UPDATE_CHECK=1; never runs in CI
+or without a terminal.
 
 Use:
     from . import update_check
-    update_check.notify(__version__)              # after an interactive command
-    print(update_check.upgrade(__version__))      # `{{BINARY}} upgrade` (rollback=True for --rollback)
+    update_check.notify(__version__)                 # built-in one-line notice after an interactive command
+    latest = update_check.check(__version__)         # or feed your own notification system
+    print(update_check.upgrade(__version__))         # `{{BINARY}} upgrade` (rollback=True for --rollback)
+A mirror or your own update server: {{ENV}}_UPDATE_MANIFEST=https://…/latest.json (same format).
 """
-import hashlib, json, os, shutil, sys, tarfile, tempfile, time, urllib.request
+import hashlib, io, json, os, platform, shutil, sys, tarfile, tempfile, time, urllib.request, zipfile
 from pathlib import Path
 
 REPO = "{{REPO}}"
-ASSET = "{{ASSET}}"
 BINARY = "{{BINARY}}"
 OPT_OUT = "{{ENV}}_NO_UPDATE_CHECK"
+MANIFEST_ENV = "{{ENV}}_UPDATE_MANIFEST"
 DAY = 86400
 
 
@@ -23,51 +26,96 @@ def checks_allowed():
 
 
 def is_newer(a, b):
+    """1.10.0 > 1.9.3; a leading v is ignored; 1.0.0 > 1.0.0-beta."""
     def parse(s):
-        return [int(p) if p.isdigit() else 0 for p in s.lstrip("v").split("-")[0].split(".")]
-    x, y = parse(a), parse(b)
+        s = s.strip().lstrip("v")
+        core, _, pre = s.partition("-")
+        return [int(p) if p.isdigit() else 0 for p in core.split(".")], bool(pre)
+    (x, xp), (y, yp) = parse(a), parse(b)
     n = max(len(x), len(y))
-    return (x + [0] * (n - len(x))) > (y + [0] * (n - len(y)))
+    x, y = x + [0] * (n - len(x)), y + [0] * (n - len(y))
+    return x > y if x != y else (yp and not xp)
 
 
-def _get(url, timeout=10):
-    req = urllib.request.Request(url, headers={"User-Agent": "{{TOKEN}}-update-check", "Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 (fixed https URLs only)
-        return r.read()
+def platform_key():
+    s = sys.platform
+    os_ = "macos" if s == "darwin" else "windows" if s.startswith("win") else "linux"
+    m = platform.machine().lower()
+    arch = "arm64" if m in ("arm64", "aarch64") else "x64" if m in ("x86_64", "amd64") else m
+    return f"{os_}-{arch}"
 
 
-def fetch_latest():
+class Policy:
+    """Where downloads may come from. The default manifest only allows this project's GitHub releases."""
+    def __init__(self, manifest=None, url_prefix=None, allow_file=False):
+        env = os.environ.get(MANIFEST_ENV, "")
+        if manifest is None and env.startswith("https://"):
+            manifest, url_prefix = env, "https://"
+        self.manifest = manifest or f"https://github.com/{REPO}/releases/latest/download/latest.json"
+        self.url_prefix = url_prefix or f"https://github.com/{REPO}/releases/download/"
+        self.allow_file = allow_file  # tests only
+
+    def get(self, url, timeout=15):
+        if not (url.startswith("https://") or (self.allow_file and url.startswith("file://"))):
+            raise ValueError(f"refusing {url}")
+        req = urllib.request.Request(url, headers={"User-Agent": "{{TOKEN}}-update-check"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 (scheme checked above)
+            return r.read()
+
+
+def parse_manifest(body, key, policy):
+    j = json.loads(body)
+    asset = None
+    for k in (key, key.split("-")[0], "any"):
+        a = (j.get("assets") or {}).get(k)
+        if not a:
+            continue
+        name, url, sha = a.get("name", ""), a.get("url", ""), a.get("sha256", "").lower()
+        ok_url = url.startswith(policy.url_prefix) or (policy.allow_file and url.startswith("file://"))
+        ok_sha = len(sha) == 64 and all(c in "0123456789abcdef" for c in sha)
+        ok_name = name and "/" not in name and "\\" not in name and not name.startswith("..")
+        if ok_url and ok_sha and ok_name:
+            asset = {"name": name, "url": url, "sha256": sha}
+        break
+    notes = j.get("notes") or ""
+    return {"version": str(j["version"]).lstrip("v"), "page": j.get("page") or f"https://github.com/{REPO}/releases",
+            "notes": notes, "security": bool(j.get("security")) or "[security]" in notes.lower(), "asset": asset}
+
+
+def fetch_latest(policy=None):
+    policy = policy or Policy()
     try:
-        data = json.loads(_get(f"https://api.github.com/repos/{REPO}/releases/latest"))
-        tag = data["tag_name"]
-        return {"version": tag.lstrip("v"), "page": f"https://github.com/{REPO}/releases/tag/{tag}",
-                "security": "[security]" in (data.get("body") or "").lower()}
+        return parse_manifest(policy.get(policy.manifest), platform_key(), policy)
     except Exception:
         return None
 
 
 def _cache_file():
-    base = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
-    return base / "{{TOKEN}}" / "update-check.json"
+    base = os.environ.get("XDG_CACHE_HOME") or os.environ.get("LOCALAPPDATA") or Path.home() / ".cache"
+    return Path(base) / "{{TOKEN}}" / "update-check.json"
 
 
 def is_homebrew():
     p = str(Path(sys.argv[0]).resolve())
-    return "/Cellar/" in p or "/homebrew/" in p
+    return any(s in p for s in ("/Cellar/", "/homebrew/", "/linuxbrew/"))
+
+
+def _package_managed():
+    return "site-packages" in __file__ or "dist-packages" in __file__
 
 
 def _how():
     if is_homebrew():
         return f"brew upgrade {BINARY}"
-    if "site-packages" in __file__ or "dist-packages" in __file__:
+    if _package_managed():
         return f"pipx upgrade {BINARY}  (or pip install -U {BINARY})"
     return f"{BINARY} upgrade"
 
 
-def notify(current):
-    """Cached daily check; prints one line to stderr when a newer version exists."""
+def check(current):
+    """Cached daily check for interactive use. Returns the newer release (dict) or None."""
     if not checks_allowed():
-        return
+        return None
     f = _cache_file()
     try:
         cached = json.loads(f.read_text())
@@ -82,46 +130,70 @@ def notify(current):
             f.write_text(json.dumps({"checked": time.time(), "latest": latest}))
         except OSError:
             pass
-    if latest and is_newer(latest["version"], current):
-        if latest["security"]:
-            print(f"\n⚠️  SECURITY UPDATE: {BINARY} {latest['version']} fixes a security issue (you have {current}). "
-                  f"Run `{_how()}` · {latest['page']}", file=sys.stderr)
-        else:
-            print(f"\n{BINARY} {latest['version']} is available (you have {current}) · `{_how()}` · what's new: {latest['page']}",
-                  file=sys.stderr)
+    return latest if latest and is_newer(latest["version"], current) else None
+
+
+def notice_line(latest, current):
+    if latest["security"]:
+        return (f"⚠️  SECURITY UPDATE: {BINARY} {latest['version']} fixes a security issue (you have {current}). "
+                f"Run `{_how()}` · {latest['page']}")
+    return f"{BINARY} {latest['version']} is available (you have {current}) · `{_how()}` · what's new: {latest['page']}"
+
+
+def notify(current):
+    latest = check(current)
+    if latest:
+        print("\n" + notice_line(latest, current), file=sys.stderr)
 
 
 def upgrade(current, rollback=False):
     """For single-file installs (install.sh / release archive). pip/pipx/Homebrew installs are told what to run."""
-    if is_homebrew() or "site-packages" in __file__:
+    if is_homebrew() or _package_managed():
         return f"Installed with a package manager: run `{_how()}`."
-    exe = Path(sys.argv[0]).resolve()
+    return upgrade_at(Path(sys.argv[0]).resolve(), current, rollback, Policy())
+
+
+def upgrade_at(exe, current, rollback, policy):
+    exe = Path(exe)
     old = exe.with_name(f".{exe.name}.old")
     if rollback:
         if not old.exists():
             return "No previous version kept."
         os.replace(old, exe)
         return "Rolled back to the previous version."
-    latest = fetch_latest()
-    if not latest:
-        return "Couldn't reach GitHub."
+    try:
+        latest = parse_manifest(policy.get(policy.manifest), platform_key(), policy)
+    except Exception:
+        return "Couldn't read the release manifest."
     if not is_newer(latest["version"], current):
         return f"{BINARY} {current} is the latest version."
-    base = f"https://github.com/{REPO}/releases/download/v{latest['version']}"
-    with tempfile.TemporaryDirectory(dir=exe.parent) as tmp:
-        archive = Path(tmp) / ASSET
-        archive.write_bytes(_get(f"{base}/{ASSET}", timeout=120))
-        expected = _get(f"{base}/{ASSET}.sha256").decode().split()[0].lower()
-        if len(expected) != 64 or hashlib.sha256(archive.read_bytes()).hexdigest() != expected:
-            return "Checksum mismatch: download rejected, nothing changed."
-        with tarfile.open(archive) as t:
-            member = t.getmember(f"./{BINARY}") if f"./{BINARY}" in t.getnames() else t.getmember(BINARY)
-            src = t.extractfile(member)
-            if src is None:
-                return "Couldn't unpack the release."
-            staged = exe.with_name(f".{exe.name}.new")
-            staged.write_bytes(src.read())
-        staged.chmod(0o755)
-        shutil.copy2(exe, old)          # keep the previous version for --rollback
-        os.replace(staged, exe)         # atomic on the same filesystem
+    a = latest["asset"]
+    if not a:
+        return f"Release {latest['version']} has no build for {platform_key()}."
+    data = policy.get(a["url"], timeout=120)
+    if hashlib.sha256(data).hexdigest() != a["sha256"]:
+        return "Checksum mismatch: download rejected, nothing changed."
+    want = {exe.name, f"./{exe.name}"}
+    if a["name"].endswith(".zip"):
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            names = [n for n in z.namelist() if n in want]
+            payload = z.read(names[0]) if names else None
+    else:
+        with tarfile.open(fileobj=io.BytesIO(data)) as t:
+            m = next((m for m in t.getmembers() if m.name in want and m.isfile()), None)
+            f = t.extractfile(m) if m else None
+            payload = f.read() if f else None
+    if payload is None:
+        return "Couldn't unpack the release."
+    staged = exe.with_name(f".{exe.name}.new")
+    staged.write_bytes(payload)
+    staged.chmod(0o755)
+    if old.exists():
+        old.unlink()
+    os.replace(exe, old)          # keep the previous version for --rollback
+    try:
+        os.replace(staged, exe)   # atomic on the same filesystem
+    except OSError:
+        os.replace(old, exe)
+        return "Swap failed; nothing changed."
     return f"Upgraded {BINARY} {current} → {latest['version']}. Undo with `{BINARY} upgrade --rollback`."

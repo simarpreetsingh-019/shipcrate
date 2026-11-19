@@ -1,7 +1,7 @@
 // In-app updater for {{PRODUCT}} (from shipcrate, extracted from Thermo's).
-// Checks GitHub Releases at most once a day with one anonymous GET (no telemetry, nothing about the user is sent),
-// shows an orange Update button, and on request downloads {{ASSET}}, verifies its SHA-256 against the checksum file
-// published with the release, checks the bundle ID and code signature, swaps the app in place and relaunches.
+// Checks the release manifest (latest.json) at most once a day with one anonymous GET (no telemetry, nothing about the user is sent),
+// shows an orange Update button (or calls your `onUpdateAvailable`), and on request downloads {{ASSET}}, verifies its
+// SHA-256 against the manifest, checks the bundle ID and code signature, swaps the app in place and relaunches.
 // Releases whose notes contain "[security]" (scripts/release.sh --security) get a stronger, red notice.
 // Opt out: `defaults write {{BUNDLE_ID}} autoUpdateCheck -bool false` or the {{ENV}}_NO_UPDATE_CHECK env var.
 //
@@ -16,9 +16,10 @@ struct Release {
     let version: String
     let notes: String
     let zipURL: URL
-    let shaURL: URL
+    let sha256: String
     let pageURL: URL
-    var isSecurity: Bool { notes.range(of: "[security]", options: .caseInsensitive) != nil }
+    let security: Bool
+    var isSecurity: Bool { security }
 }
 
 final class Updater: ObservableObject {
@@ -26,6 +27,13 @@ final class Updater: ObservableObject {
     static let repo = "{{REPO}}"
     static let bundleID = "{{BUNDLE_ID}}"
     static let asset = "{{ASSET}}"
+    /// The release manifest. Point it at your own server or CDN (same latest.json format) if you mirror releases,
+    /// and add that host to `allowedHosts`.
+    static var manifestURL = URL(string: "https://github.com/{{REPO}}/releases/latest/download/latest.json")!
+    static var allowedHosts: Set<String> = ["github.com"]
+    /// Set this to route update notices into your own notification system (UNUserNotificationCenter, an in-app
+    /// inbox, your push service…). Called on the main thread for automatic checks. The built-in button still works.
+    var onUpdateAvailable: ((Release) -> Void)?
 
     @Published var available: Release?
     @Published var status: String?          // progress / error text for the UI
@@ -60,7 +68,7 @@ final class Updater: ObservableObject {
         return false
     }
 
-    private func request(_ path: String) -> URLRequest {
+    func request(_ path: String) -> URLRequest {
         var req = URLRequest(url: URL(string: "https://api.github.com/repos/\(Self.repo)/\(path)")!)
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.setValue("{{TOKEN}}-updater", forHTTPHeaderField: "User-Agent")   // generic; no user or machine data
@@ -68,36 +76,43 @@ final class Updater: ObservableObject {
         return req
     }
 
+    /// Reads latest.json (the release manifest shipcrate publishes with every release) and picks the macOS build.
     func check(userInitiated: Bool, then done: ((Release?) -> Void)? = nil) {
         if userInitiated { status = "Checking for updates…" }
-        URLSession.shared.dataTask(with: request("releases/latest")) { [weak self] data, _, error in
+        var req = URLRequest(url: Self.manifestURL)
+        req.setValue("{{TOKEN}}-updater", forHTTPHeaderField: "User-Agent")   // generic; no user or machine data
+        req.timeoutInterval = 15
+        URLSession.shared.dataTask(with: req) { [weak self] data, _, error in
             guard let self else { return }
-            var found: Release?
-            if let data, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let tag = json["tag_name"] as? String,
-               let page = (json["html_url"] as? String).flatMap(URL.init(string:)),
-               let assets = json["assets"] as? [[String: Any]] {
-                let url = { (name: String) in
-                    (assets.first { $0["name"] as? String == name }?["browser_download_url"] as? String).flatMap(URL.init(string:))
-                }
-                let v = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
-                if let z = url(Self.asset), let s = url(Self.asset + ".sha256"),
-                   z.host == "github.com", s.host == "github.com",       // only ever download from GitHub
-                   Self.isNewer(v, than: self.current) {
-                    found = Release(version: v, notes: json["body"] as? String ?? "", zipURL: z, shaURL: s, pageURL: page)
-                }
-            }
+            let found = data.flatMap { Self.parseManifest($0, current: self.current) }
             DispatchQueue.main.async {
                 UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "lastUpdateCheck")
                 self.available = found
                 done?(found)
+                if let found, done == nil { self.onUpdateAvailable?(found) }   // hand it to your own notification system
                 if userInitiated {
-                    self.status = error != nil ? "Couldn't reach GitHub. Try again later."
+                    self.status = error != nil ? "Couldn't reach the update server. Try again later."
                         : found == nil ? "You're on the latest version (\(self.current))." : nil
                     if found == nil { DispatchQueue.main.asyncAfter(deadline: .now() + 4) { self.status = nil } }
                 }
             }
         }.resume()
+    }
+
+    /// Parse latest.json; returns a release only if it's newer and its download is from an allowed host.
+    static func parseManifest(_ data: Data, current: String) -> Release? {
+        guard let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let v = (j["version"] as? String).map({ $0.hasPrefix("v") ? String($0.dropFirst()) : $0 }),
+              let assets = j["assets"] as? [String: Any],
+              let a = (assets["macos"] ?? assets["macos-universal"] ?? assets["macos-arm64"]) as? [String: Any],
+              let z = (a["url"] as? String).flatMap(URL.init(string:)), z.scheme == "https",
+              Self.allowedHosts.contains(z.host ?? ""),
+              let sha = (a["sha256"] as? String)?.lowercased(), sha.count == 64,
+              isNewer(v, than: current) else { return nil }
+        let notes = j["notes"] as? String ?? ""
+        let page = (j["page"] as? String).flatMap(URL.init(string:)) ?? URL(string: "https://github.com/\(repo)/releases")!
+        return Release(version: v, notes: notes, zipURL: z, sha256: sha, pageURL: page,
+                       security: (j["security"] as? Bool ?? false) || notes.range(of: "[security]", options: .caseInsensitive) != nil)
     }
 
     /// Ask, then download → verify → replace → relaunch.
@@ -145,9 +160,7 @@ final class Updater: ObservableObject {
         }
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                let shaText = try String(contentsOf: r.shaURL, encoding: .utf8)
-                guard let expected = shaText.split(whereSeparator: { $0 == " " || $0 == "\n" }).first.map(String.init)?.lowercased(),
-                      expected.count == 64 else { return self.fail("invalid checksum file") }
+                let expected = r.sha256
                 let zip = try Data(contentsOf: r.zipURL)
                 let actual = SHA256.hash(data: zip).map { String(format: "%02x", $0) }.joined()
                 guard actual == expected else { return self.fail("checksum mismatch — download rejected") }

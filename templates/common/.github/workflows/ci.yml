@@ -11,5 +11,7 @@ jobs:
     runs-on: {{RUNNER}}
     steps:
       - uses: actions/checkout@v4
+      - name: Install lint and audit tools
+        run: sh scripts/ci-tools.sh
       - name: Quality gate
         run: sh scripts/check.sh

@@ -2,7 +2,7 @@
 # scripts/release.sh rewrites the version and sha256 lines on every release.
 cask "{{TOKEN}}" do
   version "0.0.0"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  sha256 "0000000000000000000000000000000000000000000000000000000000000000" # shipcrate:macos
 
   url "https://github.com/{{REPO}}/releases/download/v#{version}/{{ASSET}}"
   name "{{PRODUCT}}"
