@@ -31,9 +31,6 @@ jobs:
           ! grep -rnoE '\{\{[A-Z_]+\}\}' "$RUNNER_TEMP/w"
       - name: PowerShell parses install.ps1
         shell: pwsh
-        run: |
-          $errs = $null
-          [System.Management.Automation.Language.Parser]::ParseFile("$env:RUNNER_TEMP\w\install.ps1", [ref]$null, [ref]$errs) | Out-Null
-          if ($errs) { $errs; exit 1 }
+        run: ./tests/parse-ps1.ps1 "$env:RUNNER_TEMP/w/install.ps1"
       - name: Shipped tests (scripts + Rust updater)
         run: cd "$RUNNER_TEMP/w" && git init -q && sh tests/shipcrate/run.sh

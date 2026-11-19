@@ -31,7 +31,7 @@ for combo in "app swift Thermo" "cli rust msh" "cli python pytool" "cli node nod
   fi
   [ "$N" = wincli ] && { [ -f "$D/install.ps1" ] && ok "Windows target gets install.ps1" || bad "no install.ps1 for a Windows target"; }
   [ "$N" = msh ] && { grep -q 'shipcrate:linux-arm64' "$D/packaging/homebrew/msh.rb" && ok "formula has per-platform checksums" || bad "formula lacks per-platform checksums"; }
-  if has pwsh && [ -f "$D/install.ps1" ]; then check "PowerShell parses install.ps1" pwsh -NoProfile -Command "\$null = [System.Management.Automation.Language.Parser]::ParseFile('$D/install.ps1', [ref]\$null, [ref]\$e); if (\$e) { \$e; exit 1 }"; fi
+  if has pwsh && [ -f "$D/install.ps1" ]; then check "PowerShell parses install.ps1" pwsh -NoProfile -File "$KIT/tests/parse-ps1.ps1" "$D/install.ps1"; fi
   # The tests shipcrate ships into the project must pass in the fresh project.
   ( cd "$D" && git init -q && git add -A ) && check "shipped tests pass (tests/shipcrate/run.sh)" sh "$D/tests/shipcrate/run.sh"
   ( cd "$D" && mkdir -p dist && echo "abc  x" > "dist/$(. ./release.conf; echo "$ASSET").sha256" && printf '## [1.0.0]\n- thing\n' > CHANGELOG.md &&

@@ -39,7 +39,7 @@ grep -q "$(cut -d' ' -f1 "dist/$A.sha256")" dist/notes.md || fail "notes miss th
 sh scripts/manifest.sh 9.9.9 >/dev/null
 for tool in python3 node ruby; do
   if command -v $tool >/dev/null; then
-    case $tool in python3) python3 -I -c 'import json,sys; json.load(open(sys.argv[1]))' dist/latest.json ;;
+    case $tool in python3) python3 -I -c 'import json,sys; json.load(open(sys.argv[1], encoding="utf-8"))' dist/latest.json ;;
       node) node -e 'JSON.parse(require("fs").readFileSync(process.argv[1]))' dist/latest.json ;;
       ruby) ruby -rjson -e 'JSON.parse(File.read(ARGV[0]))' dist/latest.json ;; esac || fail "latest.json isn't valid JSON"
     break

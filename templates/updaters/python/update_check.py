@@ -118,7 +118,7 @@ def check(current):
         return None
     f = _cache_file()
     try:
-        cached = json.loads(f.read_text())
+        cached = json.loads(f.read_text(encoding="utf-8"))
     except Exception:
         cached = {}
     if time.time() - cached.get("checked", 0) < DAY:
@@ -127,7 +127,7 @@ def check(current):
         latest = fetch_latest()
         try:
             f.parent.mkdir(parents=True, exist_ok=True)
-            f.write_text(json.dumps({"checked": time.time(), "latest": latest}))
+            f.write_text(json.dumps({"checked": time.time(), "latest": latest}), encoding="utf-8")
         except OSError:
             pass
     return latest if latest and is_newer(latest["version"], current) else None
