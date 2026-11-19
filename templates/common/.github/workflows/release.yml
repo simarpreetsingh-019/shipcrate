@@ -1,0 +1,57 @@
+# Release provenance for {{PRODUCT}} (from shipcrate). Anyone can check a download came from this repo:
+#   gh attestation verify {{ASSET}} --repo {{REPO}}
+# BUILD_WHERE=ci   (release.conf): pushing a v* tag builds here, publishes the release and attests it.
+# BUILD_WHERE=local: release.sh uploads the build; publishing the release attests the uploaded file.
+name: Release
+on:
+  push:
+    tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag: { description: "Release tag to attest (e.g. v1.2.0)", required: true }
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+jobs:
+  build:
+    if: github.event_name == 'push'
+    runs-on: {{RUNNER}}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip unless CI builds releases
+        id: mode
+        run: . ./release.conf && echo "ci=$([ "$BUILD_WHERE" = ci ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+      - name: Quality gate
+        if: steps.mode.outputs.ci == 'yes'
+        run: sh scripts/check.sh
+      - name: Build, package, checksum
+        if: steps.mode.outputs.ci == 'yes'
+        run: sh scripts/build-release.sh
+      - uses: actions/attest-build-provenance@v2
+        if: steps.mode.outputs.ci == 'yes'
+        with:
+          subject-path: dist/{{ASSET}}
+      - name: Publish the GitHub release
+        if: steps.mode.outputs.ci == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          . ./release.conf
+          sh scripts/release-notes.sh "${TAG#v}" > dist/notes.md
+          gh release create "$TAG" "dist/$ASSET" "dist/$ASSET.sha256" --title "$PRODUCT ${TAG#v}" --notes-file dist/notes.md
+  attest-upload:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the release file
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '{{ASSET}}'
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "{{ASSET}}"

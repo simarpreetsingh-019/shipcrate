@@ -1,0 +1,169 @@
+#!/bin/sh
+# shipcrate: set up releases, checksums, Homebrew, provenance and update checks in a repo.
+#
+#   shipcrate init [target-dir] [options]     copy the filled-in templates into a repo (default: .)
+#   shipcrate version
+#
+# init options (anything missing is asked for when run in a terminal):
+#   --name NAME        product name, e.g. "Thermo" or "msh"
+#   --type app|cli     macOS .app with a Homebrew cask, or a command-line tool with a Homebrew formula
+#   --lang LANG        rust | swift | python | node
+#   --repo OWNER/NAME  GitHub repository of the product
+#   --tap OWNER/NAME   Homebrew tap repository (default OWNER/homebrew-<name>; "none" for no tap)
+#   --desc TEXT        one-line description (Homebrew desc)
+#   --bundle-id ID     app only: CFBundleIdentifier
+#   --dry-run          print what would be written; write nothing
+#   --yes              don't ask: use defaults and skip files that already exist
+#   --force            with --yes: overwrite existing files (without --yes you are asked per file)
+# Dependency-free POSIX sh. Writes only inside the target directory; never touches the network.
+set -eu
+KIT_VERSION=0.1.0
+KIT=$(cd "$(dirname "$0")/.." && pwd)
+T="$KIT/templates"
+say() { printf '%s\n' "$*"; }
+die() { say "shipcrate: $*" >&2; exit 1; }
+
+usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; }
+
+cmd="${1:-}"; [ $# -gt 0 ] && shift
+case "$cmd" in
+  init) ;;
+  version|--version|-v) say "shipcrate $KIT_VERSION"; exit 0 ;;
+  ""|help|-h|--help) usage; exit 0 ;;
+  *) usage; exit 2 ;;
+esac
+
+TARGET=.; NAME=""; TYPE=""; KLANG=""; REPO=""; TAP=""; DESC=""; BUNDLE=""; DRY=0; YES=0; FORCE=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --name) NAME="${2:?}"; shift ;;  --type) TYPE="${2:?}"; shift ;;  --lang) KLANG="${2:?}"; shift ;;
+    --repo) REPO="${2:?}"; shift ;;  --tap) TAP="${2:?}"; shift ;;    --desc) DESC="${2:?}"; shift ;;
+    --bundle-id) BUNDLE="${2:?}"; shift ;;
+    --dry-run|-n) DRY=1 ;; --yes|-y) YES=1 ;; --force) FORCE=1 ;;
+    -h|--help) usage; exit 0 ;;
+    -*) die "unknown option $1" ;;
+    *) TARGET="$1" ;;
+  esac
+  shift
+done
+
+INTERACTIVE=0; [ $YES = 0 ] && [ -t 0 ] && INTERACTIVE=1
+ask() { # ask VAR "Question" default
+  eval "cur=\${$1}"
+  [ -n "$cur" ] && return 0
+  if [ $INTERACTIVE = 1 ]; then
+    printf '%s%s: ' "$2" "${3:+ [$3]}"; read -r ans; [ -n "$ans" ] || ans="${3:-}"
+  else ans="${3:-}"; fi
+  [ -n "$ans" ] || die "missing --$(echo "$1" | tr 'A-Z' 'a-z')"
+  eval "$1=\$ans"
+}
+
+[ -d "$TARGET" ] || die "target folder $TARGET doesn't exist"
+TARGET=$(cd "$TARGET" && pwd)
+GUESS_REPO=$(git -C "$TARGET" remote get-url origin 2>/dev/null | sed -E 's#^(https://github.com/|git@github.com:)##; s#\.git$##' || true)
+GUESS_LANG=""
+[ -f "$TARGET/Cargo.toml" ] && GUESS_LANG=rust
+[ -f "$TARGET/Package.swift" ] || ls "$TARGET"/*.xcodeproj >/dev/null 2>&1 && GUESS_LANG=${GUESS_LANG:-swift}
+[ -f "$TARGET/pyproject.toml" ] && GUESS_LANG=${GUESS_LANG:-python}
+[ -f "$TARGET/package.json" ] && GUESS_LANG=${GUESS_LANG:-node}
+
+ask NAME "Product name" "$(basename "$TARGET")"
+ask TYPE "Type: app (macOS .app) or cli" "cli"
+case "$TYPE" in app|cli) ;; *) die "--type must be app or cli" ;; esac
+ask KLANG "Language: rust, swift, python or node" "${GUESS_LANG:-$([ "$TYPE" = app ] && echo swift || echo rust)}"
+case "$KLANG" in rust|swift|python|node) ;; *) die "--lang must be rust, swift, python or node" ;; esac
+[ "$TYPE" = app ] && [ "$KLANG" != swift ] && die "app type supports swift (macOS .app); use --type cli for $KLANG"
+TOKEN=$(printf '%s' "$NAME" | tr 'A-Z ' 'a-z-' | tr -cd 'a-z0-9._-')
+[ -n "$TOKEN" ] || die "product name needs letters or digits"
+ask REPO "GitHub repository (owner/name)" "$GUESS_REPO"
+echo "$REPO" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || die "--repo must look like owner/name"
+OWNER=${REPO%%/*}
+ask TAP "Homebrew tap repository (owner/homebrew-name, or none)" "$OWNER/homebrew-$TOKEN"
+[ "$TAP" = none ] || echo "$TAP" | grep -Eq '^[A-Za-z0-9_.-]+/homebrew-[A-Za-z0-9_.-]+$' || die "--tap must look like owner/homebrew-name, or none"
+ask DESC "One-line description" "$NAME"
+if [ "$TYPE" = app ]; then ask BUNDLE "Bundle identifier" "com.$(printf '%s' "$OWNER" | tr 'A-Z' 'a-z' | tr -cd 'a-z0-9-').$TOKEN"; fi
+
+BINARY=$TOKEN
+MODULE=$(printf '%s' "$TOKEN" | tr '.-' '__')
+CLASS=$(printf '%s' "$TOKEN" | awk -F'[-_.]' '{for(i=1;i<=NF;i++) printf "%s%s", toupper(substr($i,1,1)), substr($i,2)}')
+case "$CLASS" in [0-9]*) CLASS="A$CLASS" ;; esac
+ENVP=$(printf '%s' "$TOKEN" | tr 'a-z.-' 'A-Z__')
+if [ "$TYPE" = app ]; then
+  ASSET="$NAME.zip"; TAP_FILE="Casks/$TOKEN.rb"; RUNNER=macos-latest; BUILD_WHERE=local
+  BUILD_CMD="sh build.sh"; ARTIFACT="build/$NAME.app"
+  VERSION_CMD='/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $V" Info.plist'
+else
+  TAP_FILE="Formula/$TOKEN.rb"; BUILD_WHERE=ci
+  case "$KLANG" in
+    rust)   ASSET="$TOKEN-macos-arm64.tar.gz"; RUNNER=macos-latest
+            BUILD_CMD="cargo build --release --locked"; ARTIFACT="target/release/$BINARY"
+            VERSION_CMD='sed -i.bak -E "1,/^version = /s/^version = \".*\"/version = \"$V\"/" Cargo.toml && rm -f Cargo.toml.bak && cargo update -w -q' ;;
+    swift)  ASSET="$TOKEN-macos-arm64.tar.gz"; RUNNER=macos-latest
+            BUILD_CMD="swift build -c release"; ARTIFACT=".build/release/$BINARY"
+            VERSION_CMD="echo \"let appVersion = \\\"\$V\\\"\" > Sources/$BINARY/Version.swift" ;;
+    python) ASSET="$TOKEN.tar.gz"; RUNNER=ubuntu-latest
+            BUILD_CMD="mkdir -p build && python3 -m zipapp src -m \"$MODULE.__main__:main\" -p \"/usr/bin/env python3\" -o build/$BINARY"
+            ARTIFACT="build/$BINARY"
+            VERSION_CMD='sed -i.bak -E "1,/^version = /s/^version = \".*\"/version = \"$V\"/" pyproject.toml && rm -f pyproject.toml.bak' ;;
+    node)   ASSET="$TOKEN.tar.gz"; RUNNER=ubuntu-latest
+            BUILD_CMD="npm ci --silent && npm run build --if-present --silent"; ARTIFACT="dist/$BINARY"
+            VERSION_CMD='npm version "$V" --no-git-tag-version --allow-same-version' ;;
+  esac
+fi
+
+# --- Fill placeholders: one sed script, values escaped for the | delimiter.
+SED=$(mktemp); trap 'rm -f "${SED:?}"' EXIT
+put() { printf 's|{{%s}}|%s|g\n' "$1" "$(printf '%s' "$2" | sed 's/[\\|&]/\\&/g')" >> "$SED"; }
+put PRODUCT "$NAME"; put TOKEN "$TOKEN"; put TYPE "$TYPE"; put LANG "$KLANG"; put REPO "$REPO"; put OWNER "$OWNER"
+put TAP_REPO "$TAP"; put TAP_FILE "$TAP_FILE"; put BINARY "$BINARY"; put BUNDLE_ID "${BUNDLE:-none}"; put ASSET "$ASSET"
+put BUILD_CMD "$BUILD_CMD"; put ARTIFACT "$ARTIFACT"; put VERSION_CMD "$VERSION_CMD"; put BUILD_WHERE "$BUILD_WHERE"
+put RUNNER "$RUNNER"; put CLASS "$CLASS"; put ENV "$ENVP"; put DESCRIPTION "$(printf '%s' "$DESC" | tr -d '"')"; put MODULE "$MODULE"
+
+# --- File list: "template-path target-path" per line.
+LIST=$(cd "$T/common" && find . -type f | sed 's#^\./##' | sort | awk '{print "common/" $0 " " $0}')
+if [ "$TYPE" = app ]; then LIST="$LIST
+app/packaging/homebrew/cask.rb packaging/homebrew/$TOKEN.rb
+updaters/swift/Updater.swift updater/Updater.swift"
+else LIST="$LIST
+cli/packaging/homebrew/formula.rb packaging/homebrew/$TOKEN.rb"
+  case "$KLANG" in
+    rust)   LIST="$LIST
+updaters/rust/update.rs updater/update.rs" ;;
+    python) LIST="$LIST
+updaters/python/update_check.py updater/update_check.py" ;;
+    node)   LIST="$LIST
+updaters/node/update-check.js updater/update-check.js" ;;
+    swift)  LIST="$LIST
+updaters/rust/update.rs updater/REFERENCE-update.rs" ;;
+  esac
+fi
+
+say "shipcrate $KIT_VERSION → $TARGET"
+say "  $NAME ($TYPE, $KLANG) · github.com/$REPO · tap: $TAP · asset: $ASSET"
+[ $DRY = 1 ] && say "  dry run: nothing will be written"
+WROTE=0; SKIPPED=0
+printf '%s\n' "$LIST" | while read -r src dst; do
+  out="$TARGET/$dst"
+  if [ -e "$out" ]; then
+    if [ $DRY = 1 ]; then say "  exists (would ask)  $dst"; continue; fi
+    if [ $YES = 1 ]; then
+      [ $FORCE = 1 ] || { say "  skipped (exists)    $dst"; continue; }
+    elif [ -t 0 ]; then
+      printf '  %s exists. Overwrite? [y/N] ' "$dst"; read -r ok </dev/tty
+      case "$ok" in y|Y|yes) ;; *) say "  kept                $dst"; continue ;; esac
+    else say "  skipped (exists)    $dst"; continue; fi
+  fi
+  if [ $DRY = 1 ]; then say "  would write         $dst"; continue; fi
+  mkdir -p "$(dirname "$out")"
+  sed -f "$SED" "$T/$src" > "$out"
+  case "$dst" in *.sh|.githooks/*) chmod 755 "$out" ;; esac
+  say "  wrote               $dst"
+done
+[ $DRY = 1 ] && exit 0
+say ""
+say "Next:"
+say "  1. Read release.conf: check BUILD_CMD, ARTIFACT and VERSION_CMD match your project."
+say "  2. sh scripts/install-hooks.sh      # gate on every commit and push"
+say "  3. sh scripts/check.sh              # run the gate once"
+say "  4. Wire in the update check from updater/ (see the comment at its top)."
+say "  5. sh scripts/release.sh 0.1.0 --dry-run, then without --dry-run when you're ready."

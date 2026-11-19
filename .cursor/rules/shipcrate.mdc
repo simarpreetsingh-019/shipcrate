@@ -1,0 +1,9 @@
+---
+description: Releases, Homebrew, update checks and quality gate with shipcrate
+globs: release.conf, scripts/release.sh, scripts/check.sh
+alwaysApply: false
+---
+Use shipcrate (see AGENTS.md and skills/shipcrate/SKILL.md) for release setup and releases.
+- Ask before creating repos/taps, pushing, tagging or publishing.
+- Never put tokens in files; use `gh auth login` and `${{ github.token }}`.
+- Run `sh scripts/check.sh --release` before releasing. Preview with `--dry-run`.
