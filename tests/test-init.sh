@@ -40,6 +40,7 @@ for combo in "app swift Thermo" "cli rust msh" "cli python pytool" "cli node nod
 done
 
 echo "• safety"
+grep -qx 'dist/' "$WORK/msh/.gitignore" && ok "dist/ is git-ignored" || bad "dist/ not in .gitignore"
 D="$WORK/safe"; mkdir -p "$D"
 sh bin/shipcrate init "$D" --dry-run --yes --name s --type cli --lang rust --repo e/s >/dev/null
 [ -z "$(ls -A "$D")" ] && ok "--dry-run writes nothing" || bad "--dry-run wrote files"

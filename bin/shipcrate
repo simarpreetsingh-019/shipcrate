@@ -190,6 +190,8 @@ printf '%s\n' "$LIST" | while read -r src dst; do
   say "  wrote               $dst"
 done
 [ $DRY = 1 ] && exit 0
+# Build output must never be committed (and must not make the tree look dirty before a release).
+if ! grep -qxE '/?dist/?' "$TARGET/.gitignore" 2>/dev/null; then printf 'dist/\n' >> "$TARGET/.gitignore"; say "  added dist/ to       .gitignore"; fi
 say ""
 say "Next:"
 say "  1. Read release.conf: check BUILD_CMD, ARTIFACT and VERSION_CMD match your project."
