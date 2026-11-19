@@ -1,5 +1,7 @@
 # shipcrate
 
+[![CI](https://github.com/simarpreetsingh-019/shipcrate/actions/workflows/ci.yml/badge.svg)](https://github.com/simarpreetsingh-019/shipcrate/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/simarpreetsingh-019/shipcrate)](https://github.com/simarpreetsingh-019/shipcrate/releases) [![Stars](https://img.shields.io/github/stars/simarpreetsingh-019/shipcrate?style=social)](https://github.com/simarpreetsingh-019/shipcrate/stargazers) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 **Release and update tooling for your products, in one command.** shipcrate drops a tested release system into
 any repo: a quality gate with git hooks and CI, a one-command release script, GitHub releases with SHA-256
 checksums and build provenance, a Homebrew formula or cask, an installer that verifies what it downloads, and
@@ -101,6 +103,24 @@ Full details: [SECURITY.md](SECURITY.md).
 every type and language and checks the output (`sh -n`, YAML, `ruby -c`, compiles the Rust updater and runs its
 tests, typechecks the Swift updater, parses Python and Node). CI runs it on macOS and Linux.
 
+## Contributing
+
+Bug reports, ideas and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+Security issues go to a [private advisory](https://github.com/simarpreetsingh-019/shipcrate/security/advisories/new), not a public issue.
+
+## About the creator
+
+Hi, I'm **Simarpreet Singh**. I build developer tools for macOS and beyond, such as
+[Thermo](https://github.com/simarpreetsingh-019/Thermo), the notch system monitor that shipcrate grew out of.
+
+- 🌐 Portfolio: [simarpreetsingh-019.github.io](https://simarpreetsingh-019.github.io)
+- 𝕏 Twitter/X: [@simarpreet_019](https://x.com/simarpreet_019)
+- ✉️ Email: simarpreetsingh.019@gmail.com
+- 🐙 GitHub: [@simarpreetsingh-019](https://github.com/simarpreetsingh-019)
+
+⭐ **If shipcrate saves you time, please star the repo.** It helps other people find it and keeps me working on it.
+Using it in a project? I'd love to hear about it: tell me on X or open a discussion.
+
 ## License
 
-MIT © Simarpreet Singh · Created by [Simarpreet Singh](https://simarpreetsingh-019.github.io)
+MIT © Simarpreet Singh

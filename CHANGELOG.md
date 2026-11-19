@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- README: badges, author section; CONTRIBUTING.md.
+
 ## [0.2.0] - 2026-11-20
 
 ### Added
