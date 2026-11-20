@@ -56,7 +56,7 @@ code,.mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monosp
 .doc-hero .kicker{font-size:15px;font-weight:600}
 .doc-hero h1{font-size:clamp(44px,7vw,76px);line-height:1;letter-spacing:-.045em;font-weight:800;margin-top:12px}
 .doc-hero p{font-size:21px;color:var(--muted);max-width:640px;margin-top:20px;letter-spacing:-.01em}
-.doc{display:grid;grid-template-columns:220px 1fr;gap:56px;padding:24px 0 40px}
+.doc{display:grid;grid-template-columns:220px 1fr;gap:56px;padding-top:24px;padding-bottom:40px}
 @media(max-width:900px){.doc{grid-template-columns:1fr}.toc{display:none}}
 .toc{position:sticky;top:84px;align-self:start;font-size:14px;max-height:calc(100vh - 100px);overflow:auto}
 .toc a{display:block;padding:6px 0 6px 14px;color:var(--muted);border-left:2px solid var(--line)}
@@ -77,7 +77,7 @@ code,.mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monosp
 .prose pre,.prose .highlight{background:var(--term)!important;color:var(--termfg);border-radius:16px;padding:18px 20px;overflow-x:auto;margin:20px 0;font-size:13.5px;line-height:1.7;border:1px solid rgba(255,255,255,.06)}
 .prose .highlight pre{padding:0;margin:0;border:0;background:none!important}
 .prose pre code{background:none;border:0;padding:0;color:inherit}
-.prose table{width:100%;border-collapse:collapse;margin:22px 0;font-size:15px;display:block;overflow-x:auto}
+.prose table{width:100%;border-collapse:collapse;margin:22px 0;font-size:15px;display:block;overflow-x:auto;overflow-wrap:normal}
 .prose th,.prose td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
 .prose th{font-size:12.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
 .prose blockquote{border-left:3px solid var(--a1);padding:4px 0 4px 18px;color:var(--muted);margin:18px 0}
