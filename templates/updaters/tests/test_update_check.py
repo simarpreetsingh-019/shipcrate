@@ -1,5 +1,5 @@
 """Tests for updater/update_check.py (shipped by shipcrate). Offline: fake releases on disk via file:// URLs."""
-import hashlib, io, json, os, sys, tarfile, tempfile, unittest
+import hashlib, io, json, os, sys, tarfile, tempfile, time, unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "updater"))
@@ -48,6 +48,29 @@ class Manifest(unittest.TestCase):
             self.assertFalse(u.checks_allowed())
         finally:
             del os.environ[u.OPT_OUT]
+
+
+class Announcements(unittest.TestCase):
+    def test_cleaned_https_only_and_shown_once(self):
+        p = u.Policy(manifest="x", url_prefix="https://github.com/")
+        body = json.dumps({"version": "1.0.0", "announcement": {"id": "a1", "level": "warning",
+                           "message": "hi\x1b[31m there\nok", "url": "javascript:x", "below": "2.0.0"}})
+        a = u.parse_manifest(body, u.platform_key(), p)["announcement"]
+        self.assertEqual(a["message"], "hi[31m there ok")
+        self.assertEqual(a["url"], "")
+        with tempfile.TemporaryDirectory() as d:
+            os.environ["XDG_CACHE_HOME"] = d
+            orig = u.checks_allowed
+            u.checks_allowed = lambda: True
+            try:
+                f = u._cache_file(); f.parent.mkdir(parents=True)
+                f.write_text(json.dumps({"checked": time.time(), "latest": {"version": "1.0.0", "announcement": a}}))
+                self.assertIsNone(u.announcement("2.0.0"))       # not for versions at or above "below"
+                self.assertEqual(u.announcement("1.5.0")["id"], "a1")
+                self.assertIsNone(u.announcement("1.5.0"))       # only once
+            finally:
+                u.checks_allowed = orig
+                del os.environ["XDG_CACHE_HOME"]
 
 
 class Upgrade(unittest.TestCase):

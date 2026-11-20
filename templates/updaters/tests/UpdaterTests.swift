@@ -20,4 +20,10 @@ expect(Updater.parseManifest(manifest(good, String(repeating: "a", count: 64)), 
 expect(Updater.parseManifest(manifest("https://evil.example/x.zip", String(repeating: "a", count: 64)), current: "1.0.0") == nil, "refuses other hosts")
 expect(Updater.parseManifest(manifest("http://github.com/x.zip", String(repeating: "a", count: 64)), current: "1.0.0") == nil, "refuses plain http")
 expect(Updater.parseManifest(manifest(good, "abc"), current: "1.0.0") == nil, "refuses a bad checksum")
+let annJSON: [String: Any] = ["version": "1.0.0", "announcement": ["id": "a1", "level": "warning", "message": "hi\u{1b}[31m", "url": "javascript:x", "below": "2.0.0"]]
+let annData = try! JSONSerialization.data(withJSONObject: annJSON)
+let ann = Announcement.parse(annData, current: "1.5.0")
+expect(ann?.message == "hi[31m", "announcement: control characters stripped")
+expect(ann != nil && ann!.url == nil, "announcement: only https links")
+expect(Announcement.parse(annData, current: "2.0.0") == nil, "announcement: skipped for versions at or above 'below'")
 exit(failures == 0 ? 0 : 1)

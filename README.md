@@ -28,6 +28,7 @@ Non-interactive: `shipcrate init DIR --yes --name N --type app|cli --lang rust|s
 Already have releases or a notification system? See [docs/INTEGRATING.md](docs/INTEGRATING.md): take only the parts
 you need, send update notices through your own channels, or have each release POST to your push server.
 Platforms: [docs/PLATFORMS.md](docs/PLATFORMS.md).
+Message every user without a release: `sh scripts/announce.sh "…"`. Demo push receiver: [examples/notify-receiver](examples/notify-receiver).
 
 ## What you get
 

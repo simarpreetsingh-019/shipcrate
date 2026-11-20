@@ -9,6 +9,7 @@
 //!   built-in one-line notice after an interactive command:  update::notify(env!("CARGO_PKG_VERSION"));
 //!   your own notification system instead:  if let Some(l) = update::check(env!("CARGO_PKG_VERSION")) { my_notify(&l) }
 //!   `{{BINARY}} upgrade [--rollback]`:  update::upgrade(env!("CARGO_PKG_VERSION"), rollback)
+//! Announcements (scripts/announce.sh) print once per message, inside `notify`; or read them with `announcement()`.
 //! A mirror or your own update server: set `{{ENV}}_UPDATE_MANIFEST=https://…/latest.json` (same format).
 
 use std::collections::BTreeMap;
@@ -33,6 +34,16 @@ pub struct Asset {
     pub sha256: String,
 }
 
+/// A one-off message from the publisher (scripts/announce.sh). Display-only text; never acted on.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Announcement {
+    pub id: String,
+    pub level: String, // info | warning | security
+    pub message: String,
+    pub url: String,   // https only, or empty
+    pub below: String, // only for versions older than this, or empty for everyone
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Latest {
     pub version: String,
@@ -41,6 +52,12 @@ pub struct Latest {
     pub security: bool,
     /// The build for this machine, if the release has one.
     pub asset: Option<Asset>,
+    pub announcement: Option<Announcement>,
+}
+
+/// Remove control characters (terminal escape sequences) and cap the length: messages come from the network.
+pub fn clean(s: &str, max: usize) -> String {
+    s.chars().map(|c| if c == '\n' || c == '\t' { ' ' } else { c }).filter(|c| !c.is_control()).take(max).collect()
 }
 
 // ---------- tiny JSON reader (enough for latest.json; avoids a dependency) ----------
@@ -249,7 +266,15 @@ pub fn parse_manifest(body: &str, key: &str, p: &Policy) -> Option<Latest> {
         (ok_url && ok_sha && ok_name).then_some(asset)
     });
     let notes = j.get("notes").and_then(Json::str).unwrap_or("").to_string();
+    let announcement = j.get("announcement").and_then(|a| {
+        let f = |k: &str| a.get(k).and_then(Json::str).unwrap_or("").to_string();
+        let url = f("url");
+        let ann = Announcement { id: clean(&f("id"), 64), level: clean(&f("level"), 16), message: clean(&f("message"), 280),
+            url: if url.starts_with("https://") { clean(&url, 300) } else { String::new() }, below: clean(&f("below"), 32) };
+        (!ann.id.is_empty() && !ann.message.is_empty()).then_some(ann)
+    });
     Some(Latest {
+        announcement,
         page: j.get("page").and_then(Json::str).map(String::from).unwrap_or_else(|| format!("https://github.com/{REPO}/releases")),
         security: matches!(j.get("security"), Some(Json::Bool(true))) || notes.to_lowercase().contains("[security]"),
         version,
@@ -270,40 +295,74 @@ fn cache_file() -> Option<PathBuf> {
     Some(base.join(CACHE_DIR).join("update-check"))
 }
 
-/// Cached daily check for interactive use. Returns the newer release, if any. Use this to feed your own
-/// notification system; `notify` is the built-in one-line version.
-pub fn check(current: &str) -> Option<Latest> {
+fn to_cache(l: &Latest) -> String {
+    let a = l.announcement.clone().unwrap_or(Announcement { id: String::new(), level: String::new(), message: String::new(), url: String::new(), below: String::new() });
+    format!("{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n", now(), l.version, l.page, l.security as u8, a.id, a.level, a.url, a.below, a.message)
+}
+
+fn from_cache(text: &str) -> Option<(u64, Option<Latest>)> {
+    let v: Vec<&str> = text.lines().collect();
+    let stamp = v.first()?.parse().ok()?;
+    if v.len() < 4 {
+        return Some((stamp, None));
+    }
+    let g = |i: usize| v.get(i).copied().unwrap_or("").to_string();
+    let announcement = (!g(4).is_empty()).then(|| Announcement { id: g(4), level: g(5), url: g(6), below: g(7), message: g(8) });
+    Some((stamp, Some(Latest { version: g(1), page: g(2), notes: String::new(), security: g(3) == "1", asset: None, announcement })))
+}
+
+/// The manifest, fetched at most once a day (cached on disk). None when checks aren't allowed.
+fn latest_cached() -> Option<Latest> {
     if !checks_allowed() {
         return None;
     }
     let path = cache_file()?;
-    let cached = fs::read_to_string(&path).unwrap_or_default();
-    let mut lines = cached.lines();
-    let stamp: u64 = lines.next().and_then(|s| s.parse().ok()).unwrap_or(0);
-    let latest = if now().saturating_sub(stamp) < DAY {
-        match (lines.next(), lines.next(), lines.next()) {
-            (Some(v), Some(p), Some(s)) => Some(Latest { version: v.into(), page: p.into(), notes: String::new(), security: s == "1", asset: None }),
-            _ => None,
+    if let Some((stamp, l)) = fs::read_to_string(&path).ok().as_deref().and_then(from_cache) {
+        if now().saturating_sub(stamp) < DAY {
+            return l;
         }
-    } else {
-        let l = fetch_latest(&Policy::from_env());
-        if let Some(dir) = path.parent() {
-            let _ = fs::create_dir_all(dir);
-        }
-        let text = match &l {
-            Some(l) => format!("{}\n{}\n{}\n{}\n", now(), l.version, l.page, l.security as u8),
-            None => format!("{}\n", now()),
-        };
-        let _ = fs::write(&path, text);
-        l
-    };
-    latest.filter(|l| is_newer(&l.version, current))
+    }
+    let l = fetch_latest(&Policy::from_env());
+    if let Some(dir) = path.parent() {
+        let _ = fs::create_dir_all(dir);
+    }
+    let _ = fs::write(&path, l.as_ref().map(to_cache).unwrap_or_else(|| format!("{}\n", now())));
+    l
+}
+
+/// Cached daily check for interactive use. Returns the newer release, if any. Use this to feed your own
+/// notification system; `notify` is the built-in one-line version.
+pub fn check(current: &str) -> Option<Latest> {
+    latest_cached().filter(|l| is_newer(&l.version, current))
+}
+
+/// The publisher's current announcement, if it applies to this version and hasn't been shown yet.
+/// Marks it as shown. Use it to route messages into your own UI; `notify` prints it for you.
+pub fn announcement(current: &str) -> Option<Announcement> {
+    let a = latest_cached()?.announcement?;
+    if !a.below.is_empty() && !is_newer(&a.below, current) {
+        return None;
+    }
+    let seen = cache_file()?.with_file_name("announcement-seen");
+    if fs::read_to_string(&seen).map(|s| s.trim() == a.id).unwrap_or(false) {
+        return None;
+    }
+    let _ = fs::write(&seen, &a.id);
+    Some(a)
+}
+
+pub fn announcement_line(a: &Announcement) -> String {
+    let tag = match a.level.as_str() { "security" => "⚠️  SECURITY NOTICE", "warning" => "⚠️  NOTICE", _ => "ℹ️ " };
+    if a.url.is_empty() { format!("{tag} {BINARY}: {}", a.message) } else { format!("{tag} {BINARY}: {} · {}", a.message, a.url) }
 }
 
 /// Built-in notice: one line on stderr after a command when a newer version exists.
 pub fn notify(current: &str) {
     if let Some(l) = check(current) {
         eprintln!("\n{}", notice_line(&l, current));
+    }
+    if let Some(a) = announcement(current) {
+        eprintln!("{}", announcement_line(&a));
     }
 }
 
@@ -435,6 +494,19 @@ mod tests {
         assert!(parse_manifest(&manifest("https://evil.example/x.tar.gz", &"a".repeat(64)), &platform_key(), &p).unwrap().asset.is_none());
         assert!(parse_manifest(&manifest(&good, "abc"), &platform_key(), &p).unwrap().asset.is_none());
         assert!(parse_manifest(&manifest("file:///tmp/x.tar.gz", &"a".repeat(64)), &platform_key(), &p).unwrap().asset.is_none());
+    }
+
+    #[test]
+    fn announcements_are_cleaned_and_cached() {
+        let p = Policy { manifest: String::new(), url_prefix: "https://github.com/".into(), allow_file: false };
+        let body = r#"{"version":"1.0.0","announcement":{"id":"a1","level":"warning","message":"hi\u001b[31m there\nok","url":"javascript:x","below":"2.0.0"}}"#;
+        let l = parse_manifest(body, &platform_key(), &p).unwrap();
+        let a = l.announcement.clone().unwrap();
+        assert_eq!(a.message, "hi[31m there ok"); // escape sequence and newline stripped
+        assert_eq!(a.url, ""); // only https links
+        let back = from_cache(&to_cache(&l)).unwrap().1.unwrap();
+        assert_eq!(back.announcement, l.announcement);
+        assert!(parse_manifest(r#"{"version":"1.0.0","announcement":{"id":"","message":"x"}}"#, "x", &p).unwrap().announcement.is_none());
     }
 
     #[cfg(unix)]

@@ -46,8 +46,13 @@ Everything is plain POSIX shell plus `git` and the GitHub CLI `gh`.
 3. Only after the user says yes: `sh scripts/release.sh X.Y.Z --yes` (`--security` for a security fix).
 4. Report the release URL and the `gh attestation verify` command.
 
+## Message users without a release
+
+`sh scripts/announce.sh "text" [--level info|warning|security] [--url https://…] [--below X.Y.Z]` (or `--clear`).
+It changes what every installed copy sees, so show the user the exact text and get a yes first.
+
 ## Files it adds
 
 `release.conf` · `scripts/{check,release,build-release,release-notes,install-hooks}.sh` · `.githooks/` ·
-`scripts/{lib,manifest,notify,ci-tools}.sh` · `.github/workflows/{ci,release}.yml` · `install.sh` (+ `install.ps1` for Windows targets) ·
+`scripts/{lib,manifest,notify,announce,ci-tools}.sh` · `.github/workflows/{ci,release}.yml` · `install.sh` (+ `install.ps1` for Windows targets) ·
 `packaging/homebrew/<name>.rb` · `updater/` · `tests/shipcrate/` · `SECURITY.md` · `CHANGELOG.md` · `RELEASING.md`

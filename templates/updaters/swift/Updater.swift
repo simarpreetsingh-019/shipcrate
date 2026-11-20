@@ -22,6 +22,30 @@ struct Release {
     var isSecurity: Bool { security }
 }
 
+/// A one-off message from the publisher (scripts/announce.sh). Display-only; the app never acts on it.
+struct Announcement: Equatable {
+    let id: String
+    let level: String      // info | warning | security
+    let message: String
+    let url: URL?          // https only
+    let below: String      // only for versions older than this ("" = everyone)
+
+    /// Strip control characters and cap the length: the text comes from the network.
+    static func clean(_ s: Any?, _ max: Int) -> String {
+        String((s as? String ?? "").unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }.prefix(max).map(Character.init))
+    }
+
+    static func parse(_ data: Data, current: String) -> Announcement? {
+        guard let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let a = j["announcement"] as? [String: Any] else { return nil }
+        let url = (a["url"] as? String).flatMap(URL.init(string:)).flatMap { $0.scheme == "https" ? $0 : nil }
+        let ann = Announcement(id: clean(a["id"], 64), level: clean(a["level"], 16), message: clean(a["message"], 280), url: url, below: clean(a["below"], 32))
+        guard !ann.id.isEmpty, !ann.message.isEmpty else { return nil }
+        if !ann.below.isEmpty && !Updater.isNewer(ann.below, than: current) { return nil }
+        return ann
+    }
+}
+
 final class Updater: ObservableObject {
     static let shared = Updater()
     static let repo = "{{REPO}}"
@@ -34,6 +58,10 @@ final class Updater: ObservableObject {
     /// Set this to route update notices into your own notification system (UNUserNotificationCenter, an in-app
     /// inbox, your push service…). Called on the main thread for automatic checks. The built-in button still works.
     var onUpdateAvailable: ((Release) -> Void)?
+    /// Set this to show publisher announcements in your own UI. By default they appear in `announcement`
+    /// (shown by `AnnouncementBanner`). Each message is delivered once.
+    var onAnnouncement: ((Announcement) -> Void)?
+    @Published var announcement: Announcement?
 
     @Published var available: Release?
     @Published var status: String?          // progress / error text for the UI
@@ -85,11 +113,16 @@ final class Updater: ObservableObject {
         URLSession.shared.dataTask(with: req) { [weak self] data, _, error in
             guard let self else { return }
             let found = data.flatMap { Self.parseManifest($0, current: self.current) }
+            let ann = data.flatMap { Announcement.parse($0, current: self.current) }
             DispatchQueue.main.async {
                 UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "lastUpdateCheck")
                 self.available = found
                 done?(found)
                 if let found, done == nil { self.onUpdateAvailable?(found) }   // hand it to your own notification system
+                if let ann, UserDefaults.standard.string(forKey: "seenAnnouncement") != ann.id {
+                    UserDefaults.standard.set(ann.id, forKey: "seenAnnouncement")
+                    if let hook = self.onAnnouncement { hook(ann) } else { self.announcement = ann }
+                }
                 if userInitiated {
                     self.status = error != nil ? "Couldn't reach the update server. Try again later."
                         : found == nil ? "You're on the latest version (\(self.current))." : nil
@@ -220,6 +253,27 @@ struct UpdateButton: View {
             .help("\(r.version) is available — you have \(updater.current)")
         } else if let s = updater.status {
             Text(s).font(.caption).foregroundColor(.secondary)
+        }
+    }
+}
+
+/// A dismissible banner for publisher announcements (scripts/announce.sh).
+struct AnnouncementBanner: View {
+    @ObservedObject var updater: Updater
+    var body: some View {
+        if let a = updater.announcement {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: a.level == "info" ? "info.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundColor(a.level == "security" ? .red : a.level == "warning" ? .orange : .accentColor)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(a.message).font(.caption)
+                    if let u = a.url { Link("Learn more", destination: u).font(.caption.weight(.semibold)) }
+                }
+                Spacer(minLength: 0)
+                Button { updater.announcement = nil } label: { Image(systemName: "xmark").font(.caption2) }.buttonStyle(.plain)
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.06)))
         }
     }
 }

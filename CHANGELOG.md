@@ -4,6 +4,10 @@
 
 ### Added
 - README: badges, author section; CONTRIBUTING.md.
+- Website: one design for every page (quick start, integrating, platforms, security, contributing), new footer, live star count.
+- `scripts/announce.sh`: message every installed copy without a release (`--level`, `--url`, `--below`, `--clear`); shown once by all updaters; cleaned of control characters, https links only.
+- Webhook header `X-Shipcrate-Event: release|announcement`.
+- `examples/notify-receiver`: dependency-free demo that verifies the signed webhook and forwards to Slack, Discord or your push service, with tests.
 
 ## [0.2.0] - 2026-11-20
 

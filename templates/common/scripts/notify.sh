@@ -10,7 +10,8 @@ URL="${RELEASE_WEBHOOK_URL:-}"
 [ -n "$URL" ] || { echo "• release webhook: not configured (RELEASE_WEBHOOK_URL unset), skipped"; exit 0; }
 case "$URL" in https://*) ;; *) echo "✗ RELEASE_WEBHOOK_URL must be https"; exit 1 ;; esac
 [ -f dist/latest.json ] || { echo "✗ dist/latest.json missing: run scripts/manifest.sh first"; exit 1; }
-set -- -fsS --max-time 20 -X POST -H "Content-Type: application/json" -H "User-Agent: shipcrate-release" --data-binary @dist/latest.json
+# X-Shipcrate-Event: "release" (a new version) or "announcement" (scripts/announce.sh)
+set -- -fsS --max-time 20 -X POST -H "Content-Type: application/json" -H "User-Agent: shipcrate-release" -H "X-Shipcrate-Event: ${SHIPCRATE_EVENT:-release}" --data-binary @dist/latest.json
 if [ -n "${RELEASE_WEBHOOK_SECRET:-}" ]; then
   SIG=$(openssl dgst -sha256 -hmac "$RELEASE_WEBHOOK_SECRET" -r dist/latest.json | cut -d' ' -f1)
   set -- "$@" -H "X-Shipcrate-Signature: sha256=$SIG"

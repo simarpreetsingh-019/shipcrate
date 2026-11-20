@@ -23,6 +23,7 @@ step "templates: no credentials in release.conf" '! grep -nE "(SECRET|PASSWORD|A
 if command -v shellcheck >/dev/null 2>&1; then
   step "shellcheck (errors)" 'shellcheck -S error -s sh bin/shipcrate skills/install.sh $(git ls-files "*.sh") templates/common/.githooks/*'
 else printf "• %-44s– optional: brew install shellcheck\n" "shellcheck"; fi
+command -v node >/dev/null && step "demo notification receiver" node --test examples/notify-receiver/server.test.js
 [ "$MODE" = "--quick" ] || step "init: every type and language" sh tests/test-init.sh
 echo; [ $FAIL -eq 0 ] && echo "All checks passed." || echo "$FAIL check(s) failed."
 exit $FAIL

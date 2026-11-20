@@ -9,6 +9,7 @@ Use:
     update_check.notify(__version__)                 # built-in one-line notice after an interactive command
     latest = update_check.check(__version__)         # or feed your own notification system
     print(update_check.upgrade(__version__))         # `{{BINARY}} upgrade` (rollback=True for --rollback)
+Announcements (scripts/announce.sh) print once per message inside notify(); or read them with announcement().
 A mirror or your own update server: {{ENV}}_UPDATE_MANIFEST=https://…/latest.json (same format).
 """
 import hashlib, io, json, os, platform, shutil, sys, tarfile, tempfile, time, urllib.request, zipfile
@@ -63,6 +64,21 @@ class Policy:
             return r.read()
 
 
+def clean(text, limit):
+    """Strip control characters (terminal escape sequences) and cap length: messages come from the network."""
+    text = str(text or "").replace("\n", " ").replace("\t", " ")
+    return "".join(c for c in text if c.isprintable())[:limit]
+
+
+def _announcement(a):
+    if not isinstance(a, dict):
+        return None
+    url = str(a.get("url") or "")
+    ann = {"id": clean(a.get("id"), 64), "level": clean(a.get("level"), 16), "message": clean(a.get("message"), 280),
+           "url": clean(url, 300) if url.startswith("https://") else "", "below": clean(a.get("below"), 32)}
+    return ann if ann["id"] and ann["message"] else None
+
+
 def parse_manifest(body, key, policy):
     j = json.loads(body)
     asset = None
@@ -79,7 +95,8 @@ def parse_manifest(body, key, policy):
         break
     notes = j.get("notes") or ""
     return {"version": str(j["version"]).lstrip("v"), "page": j.get("page") or f"https://github.com/{REPO}/releases",
-            "notes": notes, "security": bool(j.get("security")) or "[security]" in notes.lower(), "asset": asset}
+            "notes": notes, "security": bool(j.get("security")) or "[security]" in notes.lower(), "asset": asset,
+            "announcement": _announcement(j.get("announcement"))}
 
 
 def fetch_latest(policy=None):
@@ -112,8 +129,8 @@ def _how():
     return f"{BINARY} upgrade"
 
 
-def check(current):
-    """Cached daily check for interactive use. Returns the newer release (dict) or None."""
+def _latest_cached():
+    """The manifest, fetched at most once a day. None when checks aren't allowed."""
     if not checks_allowed():
         return None
     f = _cache_file()
@@ -122,15 +139,43 @@ def check(current):
     except Exception:
         cached = {}
     if time.time() - cached.get("checked", 0) < DAY:
-        latest = cached.get("latest")
-    else:
-        latest = fetch_latest()
-        try:
-            f.parent.mkdir(parents=True, exist_ok=True)
-            f.write_text(json.dumps({"checked": time.time(), "latest": latest}), encoding="utf-8")
-        except OSError:
-            pass
+        return cached.get("latest")
+    latest = fetch_latest()
+    try:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps({"checked": time.time(), "latest": latest}), encoding="utf-8")
+    except OSError:
+        pass
+    return latest
+
+
+def check(current):
+    """Cached daily check for interactive use. Returns the newer release (dict) or None."""
+    latest = _latest_cached()
     return latest if latest and is_newer(latest["version"], current) else None
+
+
+def announcement(current):
+    """The publisher's announcement if it applies to this version and wasn't shown yet; marks it shown."""
+    a = (_latest_cached() or {}).get("announcement")
+    if not a or (a.get("below") and not is_newer(a["below"], current)):
+        return None
+    seen = _cache_file().with_name("announcement-seen")
+    try:
+        if seen.read_text(encoding="utf-8").strip() == a["id"]:
+            return None
+    except OSError:
+        pass
+    try:
+        seen.write_text(a["id"], encoding="utf-8")
+    except OSError:
+        pass
+    return a
+
+
+def announcement_line(a):
+    tag = {"security": "⚠️  SECURITY NOTICE", "warning": "⚠️  NOTICE"}.get(a["level"], "ℹ️ ")
+    return f"{tag} {BINARY}: {a['message']}" + (f" · {a['url']}" if a["url"] else "")
 
 
 def notice_line(latest, current):
@@ -144,6 +189,9 @@ def notify(current):
     latest = check(current)
     if latest:
         print("\n" + notice_line(latest, current), file=sys.stderr)
+    a = announcement(current)
+    if a:
+        print(announcement_line(a), file=sys.stderr)
 
 
 def upgrade(current, rollback=False):

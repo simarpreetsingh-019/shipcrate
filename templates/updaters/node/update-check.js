@@ -8,6 +8,7 @@
 //       await update.notify(version);                        // built-in one-line notice
 //       const latest = await update.check(version);          // or feed your own notification system
 //       console.log(await update.upgrade(version, rollback));  // `{{BINARY}} upgrade [--rollback]`
+// Announcements (scripts/announce.sh) print once per message inside notify(); or read them with announcement().
 // A mirror or your own update server: {{ENV}}_UPDATE_MANIFEST=https://…/latest.json (same format).
 "use strict";
 const fs = require("node:fs");
@@ -63,6 +64,17 @@ async function get(url, p, timeout = 15000) {
   return Buffer.from(await r.arrayBuffer());
 }
 
+// Strip control characters (terminal escape sequences) and cap length: messages come from the network.
+const clean = (t, n) => String(t ?? "").replace(/[\n\t]/g, " ").replace(/[\u0000-\u001f\u007f-\u009f]/g, "").slice(0, n);
+
+function parseAnnouncement(a) {
+  if (!a || typeof a !== "object") return null;
+  const url = String(a.url || "");
+  const ann = { id: clean(a.id, 64), level: clean(a.level, 16), message: clean(a.message, 280),
+    url: url.startsWith("https://") ? clean(url, 300) : "", below: clean(a.below, 32) };
+  return ann.id && ann.message ? ann : null;
+}
+
 function parseManifest(body, key, p) {
   const j = JSON.parse(body);
   let asset = null;
@@ -77,7 +89,7 @@ function parseManifest(body, key, p) {
   }
   const notes = j.notes || "";
   return { version: String(j.version).replace(/^v/, ""), page: j.page || `https://github.com/${REPO}/releases`, notes,
-    security: j.security === true || notes.toLowerCase().includes("[security]"), asset };
+    security: j.security === true || notes.toLowerCase().includes("[security]"), asset, announcement: parseAnnouncement(j.announcement) };
 }
 
 async function fetchLatest(p = policy()) {
@@ -90,20 +102,39 @@ const isHomebrew = () => /\/Cellar\/|\/homebrew\/|\/linuxbrew\//.test(exePath())
 const isNpm = () => /node_modules/.test(exePath());
 const how = () => (isHomebrew() ? `brew upgrade ${BINARY}` : isNpm() ? `npm install -g ${BINARY}@latest` : `${BINARY} upgrade`);
 
-// Cached daily check for interactive use. Resolves to the newer release, or null.
-async function check(current) {
+// The manifest, fetched at most once a day. null when checks aren't allowed.
+async function latestCached() {
   if (!checksAllowed()) return null;
   let cached = {};
   try { cached = JSON.parse(fs.readFileSync(cacheFile(), "utf8")); } catch {}
-  let latest = cached.latest;
-  if (Date.now() - (cached.checked || 0) >= DAY) {
-    latest = await fetchLatest();
-    try {
-      fs.mkdirSync(path.dirname(cacheFile()), { recursive: true });
-      fs.writeFileSync(cacheFile(), JSON.stringify({ checked: Date.now(), latest }));
-    } catch {}
-  }
-  return latest && isNewer(latest.version, current) ? latest : null;
+  if (Date.now() - (cached.checked || 0) < DAY) return cached.latest || null;
+  const latest = await fetchLatest();
+  try {
+    fs.mkdirSync(path.dirname(cacheFile()), { recursive: true });
+    fs.writeFileSync(cacheFile(), JSON.stringify({ checked: Date.now(), latest }));
+  } catch {}
+  return latest;
+}
+
+// Cached daily check for interactive use. Resolves to the newer release, or null.
+async function check(current) {
+  const l = await latestCached();
+  return l && isNewer(l.version, current) ? l : null;
+}
+
+// The publisher's announcement if it applies to this version and wasn't shown yet; marks it shown.
+async function announcement(current) {
+  const a = (await latestCached())?.announcement;
+  if (!a || (a.below && !isNewer(a.below, current))) return null;
+  const seen = path.join(path.dirname(cacheFile()), "announcement-seen");
+  try { if (fs.readFileSync(seen, "utf8").trim() === a.id) return null; } catch {}
+  try { fs.writeFileSync(seen, a.id); } catch {}
+  return a;
+}
+
+function announcementLine(a) {
+  const tag = { security: "⚠️  SECURITY NOTICE", warning: "⚠️  NOTICE" }[a.level] || "ℹ️ ";
+  return `${tag} ${BINARY}: ${a.message}` + (a.url ? ` · ${a.url}` : "");
 }
 
 function noticeLine(l, current) {
@@ -115,6 +146,8 @@ function noticeLine(l, current) {
 async function notify(current) {
   const l = await check(current);
   if (l) process.stderr.write(`\n${noticeLine(l, current)}\n`);
+  const a = await announcement(current);
+  if (a) process.stderr.write(`${announcementLine(a)}\n`);
 }
 
 // For single-file installs (install.sh / release archive). npm and Homebrew installs are told what to run.
@@ -157,4 +190,4 @@ async function upgradeAt(exe, current, rollback, p) {
   }
 }
 
-module.exports = { checksAllowed, isNewer, platformKey, policy, parseManifest, fetchLatest, check, noticeLine, notify, upgrade, upgradeAt };
+module.exports = { clean, announcement, announcementLine, checksAllowed, isNewer, platformKey, policy, parseManifest, fetchLatest, check, noticeLine, notify, upgrade, upgradeAt };

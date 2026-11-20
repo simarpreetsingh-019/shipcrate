@@ -49,6 +49,17 @@ grep -q '"security": true' dist/latest.json || fail "manifest should be marked s
 grep -q "\"$T\":" dist/latest.json || fail "manifest has no $T asset"
 grep -q "$A" dist/SHA256SUMS || fail "SHA256SUMS missing $A"
 
+# announcements: add (with quotes and backslashes), replace, clear; the manifest stays valid JSON
+cp dist/latest.json dist/a.json
+sh scripts/announce.sh --file dist/a.json 'Say "hi" \ there' --level warning --url https://example.com --below 9.9.9 >/dev/null
+grep -q '"announcement":' dist/a.json || fail "announce.sh didn't add the announcement"
+sh scripts/announce.sh --file dist/a.json "second" >/dev/null
+[ "$(grep -c '"announcement":' dist/a.json)" = 1 ] || fail "announce.sh should replace, not stack"
+if command -v python3 >/dev/null; then python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1], encoding="utf-8")); assert d["announcement"]["message"]=="second"' dist/a.json || fail "announced manifest isn't valid JSON"; fi
+sh scripts/announce.sh --file dist/a.json --clear >/dev/null
+grep -q '"announcement":' dist/a.json && fail "--clear left the announcement"
+sh scripts/announce.sh --file dist/a.json "x" --url http://insecure.example >/dev/null 2>&1 && fail "announce.sh accepted a non-https link"
+
 # install.sh with a local manifest: good install, then a tampered download must be refused
 # (only when this machine is one of the release's platforms)
 if [ "$TYPE" = cli ] && { [ "$T" = "$(host_target)" ] || [ "$T" = any ]; } && [ "${T#windows}" = "$T" ]; then

@@ -49,6 +49,10 @@ ok = hmac.compare_digest(request.headers["X-Shipcrate-Signature"],
 
 A failed webhook never undoes a release. It prints a warning, and you can re-send it with `sh scripts/notify.sh`.
 
+**Working demo:** [examples/notify-receiver](https://github.com/simarpreetsingh-019/shipcrate/tree/main/examples/notify-receiver)
+is a small Node server with no dependencies that verifies the signature and forwards each release to Slack,
+Discord or your own push gateway. Run it locally in two minutes, then deploy it behind HTTPS.
+
 ### 3. Your servers poll
 
 `https://github.com/OWNER/REPO/releases/latest/download/latest.json` always points at the newest release. Poll it
@@ -60,6 +64,25 @@ from a cron job, or mirror it to your CDN and point clients there:
 
 Clients still check every download against the manifest's SHA-256. Only HTTPS is accepted.
 
+## Send a message to every user (no release needed)
+
+```sh
+sh scripts/announce.sh "Planned maintenance Sunday 02:00 UTC" --level warning --url https://status.example.com
+sh scripts/announce.sh "Please update: 1.x stops syncing in March" --below 2.0.0
+sh scripts/announce.sh --clear
+```
+
+The message goes into the newest release's `latest.json`, after you confirm. Every installed app and CLI shows it
+**once**, at its next daily check:
+
+- CLIs print one line: `ℹ️`, `⚠️ NOTICE` or `⚠️ SECURITY NOTICE`.
+- Swift apps show `AnnouncementBanner`, or call your `onAnnouncement`.
+- Your webhook receives it with `X-Shipcrate-Event: announcement`, so your push servers can send it out right away.
+
+`--below 2.0.0` limits it to versions older than 2.0.0. Announcements are text only: clients strip control
+characters, keep only `https` links, and never download or run anything because of a message. A new release clears
+the current announcement.
+
 ## latest.json format (schema 1)
 
 ```json
@@ -68,6 +91,7 @@ Clients still check every download against the manifest's SHA-256. Only HTTPS is
   "published": "2026-11-20T10:00:00Z", "security": false,
   "page": "https://github.com/OWNER/REPO/releases/tag/v0.3.0",
   "notes": "## What's new\n…",
+  "announcement": { "id": "20261120T090000Z", "level": "info", "message": "…", "url": "https://…", "below": "" },
   "assets": {
     "macos-arm64": { "name": "msh-macos-arm64.tar.gz", "url": "https://github.com/…", "sha256": "…" },
     "linux-x64":   { "name": "msh-linux-x64.tar.gz",   "url": "https://github.com/…", "sha256": "…" }

@@ -30,6 +30,15 @@ test("manifest: only this project's releases, valid checksums", () => {
     assert.strictEqual(u.parseManifest(manifest(url, sha), u.platformKey(), p).asset, null);
 });
 
+test("announcements: cleaned, https-only links", () => {
+  const p = u.policy({ manifest: "x", urlPrefix: "https://github.com/" });
+  const body = JSON.stringify({ version: "1.0.0", announcement: { id: "a1", level: "warning", message: "hi\u001b[31m there\nok", url: "javascript:x" } });
+  const a = u.parseManifest(body, u.platformKey(), p).announcement;
+  assert.strictEqual(a.message, "hi[31m there ok");
+  assert.strictEqual(a.url, "");
+  assert.strictEqual(u.parseManifest(JSON.stringify({ version: "1", announcement: { id: "", message: "x" } }), "k", p).announcement, null);
+});
+
 test("no checks in CI", async () => {
   process.env.CI = "1";
   try { assert.strictEqual(u.checksAllowed(), false); assert.strictEqual(await u.check("0.0.1"), null); } finally { delete process.env.CI; }
