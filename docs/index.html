@@ -115,6 +115,13 @@ h2{font-size:clamp(38px,6vw,64px);line-height:1.04;letter-spacing:-.04em;font-we
 
 /* final */
 .final h2{font-size:clamp(40px,7vw,76px)}
+.faq{margin-top:48px;border-top:1px solid var(--line)}
+.faq details{border-bottom:1px solid var(--line)}
+.faq summary{cursor:pointer;list-style:none;padding:24px 44px 24px 0;font-size:clamp(18px,2.2vw,22px);font-weight:650;letter-spacing:-.02em;position:relative}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary:after{content:"+";position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:26px;font-weight:400;color:var(--muted);transition:transform .25s}
+.faq details[open] summary:after{transform:translateY(-50%) rotate(45deg);color:var(--a1)}
+.faq details p{color:var(--muted);font-size:17px;max-width:760px;padding:0 0 24px}
 .agentcmds{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:40px}
 .agentcmds .cmd{margin-top:0;width:min(640px,100%);justify-content:space-between}
 .links{display:flex;gap:30px;justify-content:center;flex-wrap:wrap;margin-top:44px;font-weight:600}
@@ -132,7 +139,7 @@ h2{font-size:clamp(38px,6vw,64px);line-height:1.04;letter-spacing:-.04em;font-we
 {% include nav.html %}
 
 <header class="hero"><div class="glow"></div><div class="wrap">
-  <div class="eyebrow r"><span class="dot"></span><b>v0.2</b> Now on macOS, Linux and Windows</div>
+  <div class="eyebrow r"><span class="dot"></span><b>v{{ site.version }}</b> Now with beta, staged rollout and MCP</div>
   <h1 class="r">Ship it.<br><span class="grad">Safely. Everywhere.</span></h1>
   <p class="sub r">Release and update tooling for your products, in one command. Checked, signed for provenance and ready for every platform before you even push.</p>
   <div class="cta r">
@@ -238,6 +245,15 @@ h2{font-size:clamp(38px,6vw,64px);line-height:1.04;letter-spacing:-.04em;font-we
     <div class="cmd"><code><b>codex</b> mcp add shipcrate -- node ~/.shipcrate/mcp/server.js</code><button class="copy" data-copy="codex mcp add shipcrate -- node ~/.shipcrate/mcp/server.js">Copy</button></div>
   </div>
   <div class="links r" style="margin-top:28px"><a href="agents/">Cursor, VS Code and more →</a><a href="llms.txt">llms.txt →</a></div>
+</div></section>
+
+<section id="faq"><div class="wrap">
+  <div class="kicker grad r">FAQ</div>
+  <h2 class="r">Questions, answered.</h2>
+  <div class="faq r">
+    {% for f in site.data.faq %}<details{% if forloop.first %} open{% endif %}><summary>{{ f.q }}</summary><p>{{ f.a }}</p></details>
+    {% endfor %}
+  </div>
 </div></section>
 
 <section id="start" class="final"><div class="wrap center">

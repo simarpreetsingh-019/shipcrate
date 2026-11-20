@@ -4,11 +4,14 @@ title: shipcrate
 url: https://simarpreetsingh-019.github.io
 baseurl: /shipcrate
 description: Release and update tooling for your products, in one command.
+version: "0.3.0"     # shown on the site and in structured data; bump with each release
+plugins:
+  - jekyll-sitemap   # /sitemap.xml for search engines
 markdown: kramdown
 kramdown:
   input: GFM
   hard_wrap: false
-exclude: [README.md]
+exclude: [README.md, "*.md.orig"]
 defaults:
   - scope: { path: "quickstart.md" }
     values: { layout: doc, permalink: /quickstart/, title: "Quick start", kicker: "Get started",

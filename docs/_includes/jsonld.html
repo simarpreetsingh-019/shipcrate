@@ -1,0 +1,47 @@
+{% comment %} Structured data for search engines and AI answer engines (schema.org JSON-LD). {% endcomment %}
+{% assign home = '/' | absolute_url %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Person", "@id": "{{ home }}#author",
+      "name": "Simarpreet Singh", "url": "https://simarpreetsingh-019.github.io",
+      "sameAs": ["https://github.com/simarpreetsingh-019", "https://x.com/simarpreet_019"]
+    },
+    {
+      "@type": "WebSite", "@id": "{{ home }}#website", "url": {{ home | jsonify }}, "name": "shipcrate",
+      "description": {{ site.description | jsonify }}, "publisher": { "@id": "{{ home }}#author" }, "inLanguage": "en"
+    },
+    {
+      "@type": ["SoftwareApplication", "SoftwareSourceCode"], "@id": "{{ home }}#software",
+      "name": "shipcrate", "url": {{ home | jsonify }},
+      "description": "Release and update tooling in one command: quality gate, GitHub releases with SHA-256 checksums and build provenance, Homebrew, installers, beta channel, staged rollout, rollback and update checks for macOS, Linux and Windows, with an MCP server for AI agents.",
+      "applicationCategory": "DeveloperApplication", "operatingSystem": "macOS, Linux, Windows",
+      "softwareVersion": {{ site.version | jsonify }}, "license": "https://opensource.org/licenses/MIT",
+      "codeRepository": "https://github.com/simarpreetsingh-019/shipcrate",
+      "programmingLanguage": ["Shell", "Rust", "Swift", "Python", "JavaScript"],
+      "image": {{ '/assets/og.png' | absolute_url | jsonify }},
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "author": { "@id": "{{ home }}#author" }
+    }{% if page.layout == "doc" %},
+    {
+      "@type": "TechArticle", "headline": {{ page.title | jsonify }}, "description": {{ page.description | jsonify }},
+      "url": {{ page.url | absolute_url | jsonify }}, "author": { "@id": "{{ home }}#author" },
+      "about": { "@id": "{{ home }}#software" }, "isPartOf": { "@id": "{{ home }}#website" }
+    },
+    {
+      "@type": "BreadcrumbList", "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "shipcrate", "item": {{ home | jsonify }} },
+        { "@type": "ListItem", "position": 2, "name": {{ page.title | jsonify }}, "item": {{ page.url | absolute_url | jsonify }} }
+      ]
+    }{% endif %}{% if page.url == "/" %},
+    {
+      "@type": "FAQPage", "mainEntity": [{% for f in site.data.faq %}
+        { "@type": "Question", "name": {{ f.q | jsonify }}, "acceptedAnswer": { "@type": "Answer", "text": {{ f.a | jsonify }} } }{% unless forloop.last %},{% endunless %}{% endfor %}
+      ]
+    }{% endif %}
+  ]
+}
+</script>

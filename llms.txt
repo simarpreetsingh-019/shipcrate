@@ -41,6 +41,8 @@ shipcrate_init (a dry run by default), shipcrate_check, shipcrate_release_previe
 
 ## Docs
 
+- [Everything in one file (llms-full.txt)](https://simarpreetsingh-019.github.io/shipcrate/llms-full.txt)
+
 - [Quick start](https://simarpreetsingh-019.github.io/shipcrate/quickstart/)
 - [Integrating (existing projects, notifications, webhooks, announcements, rollouts)](https://simarpreetsingh-019.github.io/shipcrate/integrating/)
 - [Platforms](https://simarpreetsingh-019.github.io/shipcrate/platforms/)

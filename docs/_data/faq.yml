@@ -1,0 +1,21 @@
+# One source for the FAQ section on the home page and its FAQPage structured data (search engines, AI answers).
+- q: What is shipcrate?
+  a: shipcrate is a free, open-source release and update toolkit. One command adds a quality gate, GitHub releases with SHA-256 checksums and build provenance, Homebrew packaging, installers and in-app or CLI update checks to your project.
+- q: Do I need to install anything?
+  a: No. shipcrate is plain POSIX shell. You need git and the GitHub CLI (gh). Clone the repository and run shipcrate init in your project.
+- q: Which platforms and languages does it support?
+  a: macOS, Linux and Windows on x64 and arm64. CLIs in Rust, Swift, Python and Node; macOS apps in Swift with a Homebrew cask and an in-app updater.
+- q: Does shipcrate collect any data from my users?
+  a: No. There's no telemetry. The update check is one anonymous request for the release manifest, at most once a day, and users can turn it off with an environment variable.
+- q: How do I roll back a bad release?
+  a: Run scripts/yank.sh with the bad version. It marks the release as pulled, makes the previous good version the latest again, moves Homebrew back, and tells every copy on the bad version to switch back with a verified install.
+- q: Can I release to beta users or a small percentage first?
+  a: Yes. Pre-release versions such as 1.4.0-beta.1 go only to users who opt into the beta channel. Stable releases can be staged with --rollout 10, then widened with scripts/rollout.sh 50 and 100.
+- q: Does it work with my existing notification system?
+  a: Yes. The updaters hand updates and announcements to your own code, every release can POST a signed webhook to your push server, and your servers can poll the latest.json manifest.
+- q: Can AI coding agents use shipcrate?
+  a: Yes. shipcrate ships an MCP server, skills for Claude Code and Codex, an AGENTS.md, a Cursor rule and an llms.txt. Agents preview everything and ask before they publish.
+- q: How do users know a download is genuine?
+  a: Every file has a SHA-256 checksum and a GitHub build-provenance attestation. The installers and updaters refuse anything that doesn't match, and anyone can check a file with gh attestation verify.
+- q: Is shipcrate free for commercial use?
+  a: Yes. It's MIT licensed.
