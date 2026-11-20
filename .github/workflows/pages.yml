@@ -21,8 +21,8 @@ jobs:
           B=https://github.com/simarpreetsingh-019/shipcrate/blob/main
           for f in SECURITY CONTRIBUTING; do
             out="site/$(echo "$f" | tr 'A-Z' 'a-z')-page.md"   # GitHub's Jekyll ignores files named CONTRIBUTING*
-            # front matter: GitHub's Jekyll skips CONTRIBUTING-style files without it; Liquid off keeps {{…}} literal
-            printf -- '---\nrender_with_liquid: false\n---\n' > "$out"
+            # front matter: GitHub's Jekyll skips CONTRIBUTING-style files without it; raw keeps {{…}} literal
+            printf -- '---\n---\n{%% raw %%}\n' > "$out"
             sed -e "s#](docs/PLATFORMS.md)#](../platforms/)#g; s#](docs/INTEGRATING.md)#](../integrating/)#g" \
                 -e "s#](templates/#]($B/templates/#g; s#](LICENSE)#]($B/LICENSE)#g; s#](tests/#]($B/tests/#g" "$f.md" > "$out"
           done
