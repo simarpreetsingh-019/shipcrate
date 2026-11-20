@@ -116,6 +116,8 @@ h2{font-size:clamp(38px,6vw,64px);line-height:1.04;letter-spacing:-.04em;font-we
 
 /* final */
 .final h2{font-size:clamp(40px,7vw,76px)}
+.agentcmds{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:40px}
+.agentcmds .cmd{margin-top:0;width:min(640px,100%);justify-content:space-between}
 .links{display:flex;gap:30px;justify-content:center;flex-wrap:wrap;margin-top:44px;font-weight:600}
 .links a{color:var(--a1)}
 .links a:hover{text-decoration:underline}
@@ -192,8 +194,17 @@ h2{font-size:clamp(38px,6vw,64px);line-height:1.04;letter-spacing:-.04em;font-we
       <p>Upgrades swap atomically and keep the previous version. One command undoes it.</p>
     </div>
     <div class="tile t4 r">
+      <h3>Beta first. Then everyone.</h3>
+      <p>Ship <code>1.4.0-beta.1</code> to opted-in users, then release to 10%, 50%, 100%. A bad build? Yank it, and every copy is moved back to the last good version.</p>
+      <div class="flow"><span>beta</span><em>→</em><span>10%</span><em>→</em><span>50%</span><em>→</em><span>100%</span><em>·</em><span>yank ↩</span></div>
+    </div>
+    <div class="tile t2 r">
+      <h3>Talk to every user.</h3>
+      <p>One command sends a message to every installed copy. No release needed.</p>
+    </div>
+    <div class="tile t4 r">
       <h3>Agent-ready.</h3>
-      <p>Skills for your AI coding agent. They set up, test and release your project, and they ask before they publish anything.</p>
+      <p>An MCP server, skills and an llms.txt. Your agent sets up, tests and previews releases, and asks before it publishes anything.</p>
       <div class="agents"><span>Claude Code</span><span>Codex</span><span>Cursor</span><span>AGENTS.md</span><span>Copilot</span><span>Gemini</span></div>
     </div>
   </div>
@@ -216,6 +227,17 @@ h2{font-size:clamp(38px,6vw,64px);line-height:1.04;letter-spacing:-.04em;font-we
     <div>Downloads only from your own releases</div>
     <div>Tests shipped into every project</div>
   </div>
+</div></section>
+
+<section id="agents"><div class="wrap center">
+  <div class="kicker grad r">AI agents</div>
+  <h2 class="r">Your agent already<br>knows how to ship.</h2>
+  <p class="lede r">An MCP server, skills and an llms.txt. Connect your agent with one command; it previews everything and asks you before it publishes.</p>
+  <div class="agentcmds r">
+    <div class="cmd"><code><b>claude</b> mcp add shipcrate -- node ~/.shipcrate/mcp/server.js</code><button class="copy" data-copy="claude mcp add shipcrate -- node ~/.shipcrate/mcp/server.js">Copy</button></div>
+    <div class="cmd"><code><b>codex</b> mcp add shipcrate -- node ~/.shipcrate/mcp/server.js</code><button class="copy" data-copy="codex mcp add shipcrate -- node ~/.shipcrate/mcp/server.js">Copy</button></div>
+  </div>
+  <div class="links r" style="margin-top:28px"><a href="agents/">Cursor, VS Code and more →</a><a href="llms.txt">llms.txt →</a></div>
 </div></section>
 
 <section id="start" class="final"><div class="wrap center">

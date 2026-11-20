@@ -1,7 +1,8 @@
 #!/bin/sh
 # Write dist/latest.json: the update manifest that the installers, the in-app/CLI updaters and your own servers read.
 # Published with every release, so its stable URL is https://github.com/OWNER/REPO/releases/latest/download/latest.json
-#   sh scripts/manifest.sh <version> [--security]      (reads dist/*.sha256 and dist/notes.md)
+#   [ROLLOUT=N] sh scripts/manifest.sh <version> [--security]      (reads dist/*.sha256 and dist/notes.md)
+# Optional keys added later by other scripts: "rollout" (rollout.sh), "announcement" (announce.sh), "yanked" (yank.sh).
 set -eu
 cd "$(dirname "$0")/.."
 . ./release.conf; . scripts/lib.sh
@@ -11,6 +12,8 @@ BASE="https://github.com/$REPO/releases/download/v$V"
 {
   printf '{\n  "schema": 1,\n  "name": %s,\n  "version": "%s",\n  "tag": "v%s",\n' "$(printf '%s' "$PRODUCT" | json_string)" "$V" "$V"
   printf '  "published": "%s",\n  "security": %s,\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$SEC"
+  # staged rollout: only N% of copies are offered the update (ROLLOUT=N); 100 = everyone
+  case "${ROLLOUT:-100}" in 100|"") ;; *) printf '  "rollout": %s,\n' "$ROLLOUT" ;; esac
   printf '  "page": "https://github.com/%s/releases/tag/v%s",\n' "$REPO" "$V"
   printf '  "notes": %s,\n  "assets": {' "$( (cat dist/notes.md 2>/dev/null || true) | json_string)"
   sep=""

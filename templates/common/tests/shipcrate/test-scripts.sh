@@ -60,6 +60,19 @@ sh scripts/announce.sh --file dist/a.json --clear >/dev/null
 grep -q '"announcement":' dist/a.json && fail "--clear left the announcement"
 sh scripts/announce.sh --file dist/a.json "x" --url http://insecure.example >/dev/null 2>&1 && fail "announce.sh accepted a non-https link"
 
+# staged rollout and yanking edit the manifest and keep it valid JSON
+valid() { if command -v python3 >/dev/null; then python3 -I -c "import json,sys; d=json.load(open(sys.argv[1], encoding='utf-8')); $2" "$1"; else true; fi; }
+cp dist/latest.json dist/r.json
+sh scripts/rollout.sh 25 --file dist/r.json >/dev/null
+valid dist/r.json 'assert d["rollout"]==25' || fail "rollout.sh didn't set 25%"
+sh scripts/rollout.sh 100 --file dist/r.json >/dev/null
+valid dist/r.json 'assert "rollout" not in d' || fail "rollout 100 should remove the key"
+sh scripts/rollout.sh 101 --file dist/r.json >/dev/null 2>&1 && fail "rollout.sh accepted 101%"
+sh scripts/yank.sh 9.9.8 --file dist/r.json >/dev/null && sh scripts/yank.sh 9.9.7 --file dist/r.json >/dev/null && sh scripts/yank.sh 9.9.8 --file dist/r.json >/dev/null
+valid dist/r.json 'assert d["yanked"]==["9.9.8","9.9.7"], d["yanked"]' || fail "yank.sh list wrong"
+ROLLOUT=10 sh scripts/manifest.sh 9.9.9 >/dev/null && valid dist/latest.json 'assert d["rollout"]==10' || fail "manifest.sh ignored ROLLOUT"
+sh scripts/manifest.sh 9.9.9 >/dev/null
+
 # install.sh with a local manifest: good install, then a tampered download must be refused
 # (only when this machine is one of the release's platforms)
 if [ "$TYPE" = cli ] && { [ "$T" = "$(host_target)" ] || [ "$T" = any ]; } && [ "${T#windows}" = "$T" ]; then

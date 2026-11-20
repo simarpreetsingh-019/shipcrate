@@ -74,5 +74,10 @@ code,.mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monosp
 .pager a b{font-size:17px}
 .pager a:hover{border-color:var(--a1)}
 .pager .next{text-align:right}
+.prose pre{position:relative}
+.cp{position:absolute;top:10px;right:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.08);color:#e8e8ee;font:600 11.5px Inter,sans-serif;padding:5px 10px;border-radius:8px;cursor:pointer;opacity:.75}
+.cp:hover{opacity:1}
+.prose a.btn-install{display:inline-flex;align-items:center;gap:8px;margin:6px 0 4px;padding:10px 18px;border-radius:999px;background:linear-gradient(100deg,var(--a1),var(--a2));color:#fff;font-weight:600;font-size:15px;text-decoration:none;box-shadow:0 10px 26px -10px rgba(255,45,120,.6)}
+.prose a.btn-install:hover{text-decoration:none;transform:translateY(-1px)}
 /* rouge highlighting */
 .highlight .c,.highlight .c1,.highlight .cm{color:#6b6b75}.highlight .s,.highlight .s1,.highlight .s2{color:#a5d6a7}.highlight .k,.highlight .nb,.highlight .kd{color:#ff8a4c}.highlight .nv,.highlight .na,.highlight .nt{color:#c4b5ff}.highlight .m,.highlight .mi{color:#ffd166}

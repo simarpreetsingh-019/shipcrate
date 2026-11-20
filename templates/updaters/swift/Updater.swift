@@ -20,6 +20,8 @@ struct Release {
     let pageURL: URL
     let security: Bool
     var isSecurity: Bool { security }
+    /// The running version was pulled by the publisher (scripts/yank.sh); this release moves back to a good one.
+    var replacesYanked = false
 }
 
 /// A one-off message from the publisher (scripts/announce.sh). Display-only; the app never acts on it.
@@ -53,7 +55,23 @@ final class Updater: ObservableObject {
     static let asset = "{{ASSET}}"
     /// The release manifest. Point it at your own server or CDN (same latest.json format) if you mirror releases,
     /// and add that host to `allowedHosts`.
-    static var manifestURL = URL(string: "https://github.com/{{REPO}}/releases/latest/download/latest.json")!
+    static var manifestURL: URL {
+        get { manifestOverride ?? URL(string: channel == "beta"
+            ? "https://github.com/{{REPO}}/releases/download/channel/beta.json"
+            : "https://github.com/{{REPO}}/releases/latest/download/latest.json")! }
+        set { manifestOverride = newValue }
+    }
+    private static var manifestOverride: URL?
+    /// "stable" or "beta" (pre-releases too). Let users pick it in your settings: `Updater.channel = "beta"`.
+    static var channel: String {
+        get { UserDefaults.standard.string(forKey: "updateChannel") ?? "stable" }
+        set { UserDefaults.standard.set(newValue, forKey: "updateChannel") }
+    }
+    /// This copy's staged-rollout bucket, 0-99: random once, kept in UserDefaults, never sent anywhere.
+    static var rolloutBucket: Int {
+        if let b = UserDefaults.standard.object(forKey: "rolloutBucket") as? Int, (0..<100).contains(b) { return b }
+        let b = Int.random(in: 0..<100); UserDefaults.standard.set(b, forKey: "rolloutBucket"); return b
+    }
     static var allowedHosts: Set<String> = ["github.com"]
     /// Set this to route update notices into your own notification system (UNUserNotificationCenter, an in-app
     /// inbox, your push service…). Called on the main thread for automatic checks. The built-in button still works.
@@ -112,7 +130,8 @@ final class Updater: ObservableObject {
         req.timeoutInterval = 15
         URLSession.shared.dataTask(with: req) { [weak self] data, _, error in
             guard let self else { return }
-            let found = data.flatMap { Self.parseManifest($0, current: self.current) }
+            // A check the user asked for ignores staged rollout; automatic checks respect it.
+            let found = data.flatMap { Self.parseManifest($0, current: self.current, bucket: userInitiated ? 0 : Self.rolloutBucket) }
             let ann = data.flatMap { Announcement.parse($0, current: self.current) }
             DispatchQueue.main.async {
                 UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "lastUpdateCheck")
@@ -133,19 +152,24 @@ final class Updater: ObservableObject {
     }
 
     /// Parse latest.json; returns a release only if it's newer and its download is from an allowed host.
-    static func parseManifest(_ data: Data, current: String) -> Release? {
+    static func parseManifest(_ data: Data, current: String, bucket: Int = 0) -> Release? {
         guard let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let v = (j["version"] as? String).map({ $0.hasPrefix("v") ? String($0.dropFirst()) : $0 }),
               let assets = j["assets"] as? [String: Any],
               let a = (assets["macos"] ?? assets["macos-universal"] ?? assets["macos-arm64"]) as? [String: Any],
               let z = (a["url"] as? String).flatMap(URL.init(string:)), z.scheme == "https",
               Self.allowedHosts.contains(z.host ?? ""),
-              let sha = (a["sha256"] as? String)?.lowercased(), sha.count == 64,
-              isNewer(v, than: current) else { return nil }
+              let sha = (a["sha256"] as? String)?.lowercased(), sha.count == 64 else { return nil }
+        let yanked = ((j["yanked"] as? [String]) ?? []).map { $0.hasPrefix("v") ? String($0.dropFirst()) : $0 }.contains(current) && v != current
+        let rollout = (j["rollout"] as? Int).map { max(0, min(100, $0)) } ?? 100
         let notes = j["notes"] as? String ?? ""
+        let security = (j["security"] as? Bool ?? false) || notes.range(of: "[security]", options: .caseInsensitive) != nil
+        // Pulled version → always offer the way back; security → always; otherwise newer and inside the rollout.
+        guard yanked || (isNewer(v, than: current) && (security || bucket < rollout)) else { return nil }
         let page = (j["page"] as? String).flatMap(URL.init(string:)) ?? URL(string: "https://github.com/\(repo)/releases")!
-        return Release(version: v, notes: notes, zipURL: z, sha256: sha, pageURL: page,
-                       security: (j["security"] as? Bool ?? false) || notes.range(of: "[security]", options: .caseInsensitive) != nil)
+        var r = Release(version: v, notes: notes, zipURL: z, sha256: sha, pageURL: page, security: security)
+        r.replacesYanked = yanked
+        return r
     }
 
     /// Ask, then download → verify → replace → relaunch.
@@ -154,7 +178,8 @@ final class Updater: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = r.isSecurity ? .critical : .informational
-        alert.messageText = r.isSecurity ? "Security update: {{PRODUCT}} \(r.version)" : "{{PRODUCT}} \(r.version) is available"
+        alert.messageText = r.replacesYanked ? "{{PRODUCT}} \(current) was pulled: please switch to \(r.version)"
+            : r.isSecurity ? "Security update: {{PRODUCT}} \(r.version)" : "{{PRODUCT}} \(r.version) is available"
         let notes = r.notes.count > 600 ? String(r.notes.prefix(600)) + "…" : r.notes
         alert.informativeText = "You have \(current).\n\n\(notes)"
         alert.addButton(withTitle: "Update & Relaunch")
@@ -243,10 +268,10 @@ struct UpdateButton: View {
     var body: some View {
         if let r = updater.available {
             Button(action: { updater.promptInstall() }) {
-                Label(r.isSecurity ? "Security update" : "Update", systemImage: r.isSecurity ? "exclamationmark.shield.fill" : "arrow.down.circle.fill")
+                Label(r.replacesYanked ? "Switch version" : r.isSecurity ? "Security update" : "Update", systemImage: r.isSecurity ? "exclamationmark.shield.fill" : "arrow.down.circle.fill")
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Capsule().fill(r.isSecurity ? Color.red : Color.orange))
+                    .background(Capsule().fill(r.isSecurity || r.replacesYanked ? Color.red : Color.orange))
                     .foregroundColor(.white)
             }
             .buttonStyle(.plain)

@@ -25,7 +25,13 @@ which explains the protections listed below to that project's users.
    text in `run:`, or uses a third-party action that isn't pinned to a commit.
 6. **No secrets in files.** The gate scans for common token formats and blocks key, certificate, `.env` and model
    files. Local releases use `gh auth login`; CI uses `GITHUB_TOKEN`; webhook settings are repository secrets.
-7. **No telemetry.** The update check is one anonymous GET of `latest.json`, at most daily, interactive use only, with
+7. **Rollouts and yanks stay private.** The rollout bucket is a random number kept on the user's machine. Yanks
+   and announcements change only text in `latest.json`: clients still verify every download, and they never run
+   anything because of a message.
+8. **Agents can't publish by themselves.** The MCP server has no publishing tools. Every agent file (skill,
+   AGENTS.md, llms.txt, Cursor rule, MCP instructions) tells the agent to ask before pushing, publishing, yanking,
+   changing a rollout or sending an announcement.
+9. **No telemetry.** The update check is one anonymous GET of `latest.json`, at most daily, interactive use only, with
    an opt-out env var. `shipcrate init` itself makes no network requests.
 
 ## Tests that guard this

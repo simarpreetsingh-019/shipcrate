@@ -1,19 +1,25 @@
 #!/bin/sh
 # Publish {{PRODUCT}} version $1:
 #   guardrails → quality gate → set version → build → checksum → manifest → GitHub release → Homebrew tap → webhook
-#   sh scripts/release.sh 1.2.0 ["extra notes"] [--security] [--yes] [--dry-run]
+#   sh scripts/release.sh 1.2.0 ["extra notes"] [--security] [--rollout 10] [--yes] [--dry-run]
+#   sh scripts/release.sh 1.3.0-beta.1          a pre-release: only the beta channel gets it, Homebrew stays put
+# --rollout N offers it to N% of users first (widen with scripts/rollout.sh; Homebrew follows at 100%).
 # --dry-run builds and prints the notes but changes nothing. Asks before publishing unless --yes.
 # Needs git and gh (`gh auth login`). Tokens never go in files: webhook settings come from the environment.
 set -eu
 cd "$(dirname "$0")/.."
 . ./release.conf; . scripts/lib.sh
-V=""; NOTES=""; FLAGS=""; YES=0; DRY=0
-for a in "$@"; do case "$a" in
-  --yes|-y) YES=1 ;; --dry-run|-n) DRY=1 ;; --security) FLAGS="--security" ;;
+V=""; NOTES=""; FLAGS=""; YES=0; DRY=0; ROLLOUT=100; NEXT=""
+for a in "$@"; do
+  if [ "$NEXT" = rollout ]; then ROLLOUT="$a"; NEXT=""; continue; fi
+  case "$a" in
+  --yes|-y) YES=1 ;; --dry-run|-n) DRY=1 ;; --security) FLAGS="--security" ;; --rollout) NEXT=rollout ;;
   -*) echo "unknown flag $a"; exit 2 ;;
   *) if [ -z "$V" ]; then V="${a#v}"; else NOTES="$a"; fi ;;
 esac; done
-[ -n "$V" ] || { sed -n '2,6p' "$0"; exit 2; }
+[ -n "$V" ] || { sed -n '2,9p' "$0"; exit 2; }
+case "$ROLLOUT" in ''|*[!0-9]*) echo "✗ --rollout takes a percent (1-100)"; exit 2 ;; esac
+PRE=0; case "$V" in *-*) PRE=1 ;; esac
 say() { printf '%s\n' "$*"; }
 die() { say "✗ $*"; exit 1; }
 # In a dry run, guardrail failures are reported but don't stop the preview.
@@ -27,7 +33,7 @@ git rev-parse -q --verify "refs/tags/v$V" >/dev/null && die "tag v$V already exi
 LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)
 if [ -n "$LAST" ]; then
   NEWEST=$(printf '%s\n%s\n' "${LAST#v}" "$V" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
-  [ "$NEWEST" = "$V" ] && [ "${LAST#v}" != "$V" ] || die "$V isn't newer than the last release ($LAST)"
+  [ "$NEWEST" = "$V" ] && [ "${LAST#v}" != "$V" ] || [ $PRE = 1 ] || die "$V isn't newer than the last release ($LAST)"
 fi
 [ -z "$(git status --porcelain)" ] || guard "commit or stash your changes first"
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -57,7 +63,7 @@ mkdir -p dist
 sh scripts/release-notes.sh "$V" "$NOTES" $FLAGS > dist/notes.md
 say ""; say "──── Release notes for v$V ────"; cat dist/notes.md; say "───────────────────────────────"
 if [ $DRY = 1 ]; then
-  [ "$BUILD_WHERE" = local ] && sh scripts/manifest.sh "$V" $FLAGS >/dev/null && say "Manifest preview: dist/latest.json"
+  [ "$BUILD_WHERE" = local ] && ROLLOUT=$ROLLOUT sh scripts/manifest.sh "$V" $FLAGS >/dev/null && say "Manifest preview: dist/latest.json"
   say "Dry run: nothing was committed, tagged, pushed or published."; exit 0
 fi
 if [ $YES = 0 ]; then
@@ -70,9 +76,11 @@ git tag -a "v$V" -m "$PRODUCT $V"
 git push -q && git push -q origin "v$V"
 
 if [ "$BUILD_WHERE" = local ]; then
-  sh scripts/manifest.sh "$V" $FLAGS
+  ROLLOUT=$ROLLOUT sh scripts/manifest.sh "$V" $FLAGS
   set --; for f in dist/*; do case "$f" in dist/notes.md) ;; *) set -- "$@" "$f" ;; esac; done
+  if [ $PRE = 1 ]; then set -- "$@" --prerelease; fi
   gh release create "v$V" "$@" --repo "$REPO" --title "$PRODUCT $V" --notes-file dist/notes.md
+  sh scripts/channel.sh dist/latest.json || true
   sh scripts/notify.sh || true
 else
   say "→ CI is building v$V on every target (.github/workflows/release.yml); waiting for the release…"
@@ -83,23 +91,9 @@ else
   done
 fi
 
-if [ "$TAP_REPO" != none ]; then
-  say "→ Bumping $TAP_REPO ($TAP_FILE)"
-  if ! gh repo view "$TAP_REPO" >/dev/null 2>&1; then
-    say "• Tap $TAP_REPO doesn't exist. Ask the owner, create it (gh repo create $TAP_REPO --public), copy packaging/homebrew/$(basename "$TAP_FILE") to $TAP_FILE, then rerun."
-  else
-    TAP=$(mktemp -d); trap 'rm -rf "${TAP:?}"' EXIT
-    gh repo clone "$TAP_REPO" "$TAP" -- -q
-    if [ ! -f "$TAP/$TAP_FILE" ]; then mkdir -p "$TAP/$(dirname "$TAP_FILE")"; cp "packaging/homebrew/$(basename "$TAP_FILE")" "$TAP/$TAP_FILE"; git -C "$TAP" add "$TAP_FILE"; fi
-    F="$TAP/$TAP_FILE"
-    sed -E "s/^  version \".*\"/  version \"$V\"/" "$F" > "$F.new" && mv "$F.new" "$F"
-    for t in $TARGETS; do
-      a=$(asset_for "$t"); sha=$(awk -v a="$a" '$2==a || $2=="*"a {print $1}' dist/SHA256SUMS)
-      [ -n "$sha" ] || continue
-      sed -E "s/sha256 \"[0-9a-f]*\"( *# shipcrate:$t)$/sha256 \"$sha\"\1/" "$F" > "$F.new" && mv "$F.new" "$F"
-    done
-    git -C "$TAP" commit -qam "$TOKEN $V" && git -C "$TAP" push -q
-  fi
-fi
+if [ "$BUILD_WHERE" != local ] && [ "$ROLLOUT" -lt 100 ]; then sh scripts/rollout.sh "$ROLLOUT" --yes; fi
+if [ $PRE = 1 ]; then say "• pre-release: beta channel only; Homebrew and stable users stay on the current version"
+elif [ "$ROLLOUT" -lt 100 ]; then say "• staged rollout at $ROLLOUT%: Homebrew follows when you run scripts/rollout.sh 100"
+else sh scripts/tap.sh "$V"; fi
 say "✓ Released $PRODUCT $V: https://github.com/$REPO/releases/tag/v$V"
 say "  Verify: gh attestation verify <file> --repo $REPO"

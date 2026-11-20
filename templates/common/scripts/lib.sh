@@ -36,3 +36,25 @@ sha256_of() {
 json_string() {
   awk 'BEGIN{ORS=""; print "\""} {gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); gsub(/\t/,"\\t"); gsub(/\r/,""); if (NR>1) print "\\n"; print} END{print "\""}'
 }
+
+# Set (or with an empty value, remove) a top-level key in a manifest written by manifest.sh.
+#   manifest_set FILE KEY 'raw-json-value'
+manifest_set() {
+  KEY="$2" VAL="$3" awk '
+    BEGIN { key = ENVIRON["KEY"]; val = ENVIRON["VAL"]; pat = "^  \"" key "\":" }
+    $0 ~ pat { next }
+    { lines[++n] = $0 }
+    END {
+      last = n; while (last > 0 && lines[last] !~ /^}/) last--
+      for (i = 1; i < last; i++) {
+        l = lines[i]
+        if (i == last - 1) { if (val != "") sub(/,?[ ]*$/, ",", l); else sub(/,[ ]*$/, "", l) }
+        print l
+      }
+      if (val != "") print "  \"" key "\": " val
+      for (i = last; i <= n; i++) print lines[i]
+    }' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+}
+
+# Download a release's latest.json into DIR (prints the path).
+fetch_manifest() { gh release download "$1" --repo "$REPO" --pattern latest.json --dir "$2" --clobber >/dev/null && echo "$2/latest.json"; }

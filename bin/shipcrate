@@ -18,7 +18,7 @@
 #   --force            with --yes: overwrite existing files (without --yes you are asked per file)
 # Dependency-free POSIX sh. Writes only inside the target directory; never touches the network.
 set -eu
-KIT_VERSION=0.2.0
+KIT_VERSION=0.3.0
 KIT=$(cd "$(dirname "$0")/.." && pwd)
 T="$KIT/templates"
 say() { printf '%s\n' "$*"; }

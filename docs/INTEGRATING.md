@@ -83,6 +83,47 @@ The message goes into the newest release's `latest.json`, after you confirm. Eve
 characters, keep only `https` links, and never download or run anything because of a message. A new release clears
 the current announcement.
 
+## Beta first, then everyone
+
+**Beta channel.** Release a pre-release version: `sh scripts/release.sh 1.4.0-beta.1`. It's published as a GitHub
+pre-release and to the beta manifest (`releases/download/channel/beta.json`). Stable users and Homebrew don't see it.
+Users opt in with:
+
+- CLI: `<NAME>_CHANNEL=beta`
+- Swift app: `Updater.channel = "beta"` (put a toggle in your settings)
+
+Beta users also get every stable release, so they're never left behind.
+
+**Staged rollout.** Release to a slice of users, watch, then widen:
+
+```sh
+sh scripts/release.sh 1.4.0 --rollout 10   # 10% of installed copies see the update notice
+sh scripts/rollout.sh 50
+sh scripts/rollout.sh 100                  # everyone; Homebrew is bumped now
+```
+
+Each copy picks a random number from 0 to 99 once and keeps it on the user's machine. A copy gets the notice when its
+number is below the percentage. Nothing is sent or tracked. Security releases (`--security`) ignore the percentage,
+and a user who runs `upgrade` themselves always gets the newest version.
+
+## Rolling back a bad release
+
+| Who | Command | What happens |
+|---|---|---|
+| One user | `mytool upgrade --rollback` | Swaps back the previous binary the upgrade kept |
+| You, for everyone | `sh scripts/yank.sh 1.4.0 [--to 1.3.2] [--reason "…"]` | See below |
+| You, fixing forward | `sh scripts/release.sh 1.4.1` | The normal path once you have a fix |
+
+`yank.sh`, after you confirm:
+
+1. Marks `v1.4.0` as **[YANKED]** with a warning at the top of its notes.
+2. Makes `v1.3.2` "latest" again, with `"yanked": ["1.4.0"]` in its `latest.json`.
+3. Copies on 1.4.0 are told the version was pulled. `upgrade` moves them to 1.3.2 as a normal verified install,
+   checksum included.
+4. Sends Homebrew and the beta channel back to 1.3.2, and calls your webhook with `X-Shipcrate-Event: yank`.
+
+Nothing is deleted: the 1.4.0 files stay downloadable, and the git tag stays where it is.
+
 ## latest.json format (schema 1)
 
 ```json
@@ -92,6 +133,8 @@ the current announcement.
   "page": "https://github.com/OWNER/REPO/releases/tag/v0.3.0",
   "notes": "## What's new\n…",
   "announcement": { "id": "20261120T090000Z", "level": "info", "message": "…", "url": "https://…", "below": "" },
+  "rollout": 25,
+  "yanked": ["0.2.9"],
   "assets": {
     "macos-arm64": { "name": "msh-macos-arm64.tar.gz", "url": "https://github.com/…", "sha256": "…" },
     "linux-x64":   { "name": "msh-linux-x64.tar.gz",   "url": "https://github.com/…", "sha256": "…" }

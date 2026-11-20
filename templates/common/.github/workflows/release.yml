@@ -91,6 +91,10 @@ jobs:
           . ./release.conf
           prerelease=""; case "$TAG" in *-*) prerelease="--prerelease" ;; esac
           find dist -maxdepth 1 -type f ! -name notes.md -print0 | xargs -0 gh release create "$TAG" --title "$PRODUCT ${TAG#v}" --notes-file dist/notes.md $prerelease
+      - name: Update the beta channel (beta.json)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh scripts/channel.sh dist/latest.json
       - name: Notify your systems (optional webhook)
         env:
           RELEASE_WEBHOOK_URL: ${{ secrets.RELEASE_WEBHOOK_URL }}

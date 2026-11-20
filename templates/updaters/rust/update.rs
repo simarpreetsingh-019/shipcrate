@@ -10,6 +10,8 @@
 //!   your own notification system instead:  if let Some(l) = update::check(env!("CARGO_PKG_VERSION")) { my_notify(&l) }
 //!   `{{BINARY}} upgrade [--rollback]`:  update::upgrade(env!("CARGO_PKG_VERSION"), rollback)
 //! Announcements (scripts/announce.sh) print once per message, inside `notify`; or read them with `announcement()`.
+//! Beta channel: `{{ENV}}_CHANNEL=beta` reads the beta manifest (pre-releases plus every stable release).
+//! Staged rollouts (`"rollout": N`) and pulled versions (`"yanked"`) are handled for you.
 //! A mirror or your own update server: set `{{ENV}}_UPDATE_MANIFEST=https://…/latest.json` (same format).
 
 use std::collections::BTreeMap;
@@ -24,6 +26,7 @@ pub const REPO: &str = "{{REPO}}";
 pub const BINARY: &str = "{{BINARY}}";
 const OPT_OUT: &str = "{{ENV}}_NO_UPDATE_CHECK";
 const MANIFEST_ENV: &str = "{{ENV}}_UPDATE_MANIFEST";
+const CHANNEL_ENV: &str = "{{ENV}}_CHANNEL";
 const CACHE_DIR: &str = "{{TOKEN}}";
 const DAY: u64 = 86_400;
 
@@ -53,6 +56,23 @@ pub struct Latest {
     /// The build for this machine, if the release has one.
     pub asset: Option<Asset>,
     pub announcement: Option<Announcement>,
+    /// Versions the publisher pulled (scripts/yank.sh). Copies on one of these are moved to `version`.
+    pub yanked: Vec<String>,
+    /// Staged rollout percent (scripts/rollout.sh); 100 = everyone.
+    pub rollout: u8,
+}
+
+impl Latest {
+    pub fn is_yanked(&self, current: &str) -> bool {
+        self.yanked.iter().any(|y| y.trim_start_matches('v') == current.trim_start_matches('v'))
+    }
+    /// Should this copy be told about the release? Yanked → always; security → always; else by rollout bucket.
+    pub fn offered_to(&self, current: &str, bucket: u8) -> bool {
+        if self.is_yanked(current) {
+            return self.version != current.trim_start_matches('v');
+        }
+        is_newer(&self.version, current) && (self.security || bucket < self.rollout)
+    }
 }
 
 /// Remove control characters (terminal escape sequences) and cap the length: messages come from the network.
@@ -220,7 +240,11 @@ pub fn platform_key() -> String {
 }
 
 pub fn default_manifest_url() -> String {
-    format!("https://github.com/{REPO}/releases/latest/download/latest.json")
+    if env::var(CHANNEL_ENV).map(|c| c == "beta").unwrap_or(false) {
+        format!("https://github.com/{REPO}/releases/download/channel/beta.json")
+    } else {
+        format!("https://github.com/{REPO}/releases/latest/download/latest.json")
+    }
 }
 
 /// Where downloads may come from. The default manifest only allows this project's GitHub releases.
@@ -273,7 +297,14 @@ pub fn parse_manifest(body: &str, key: &str, p: &Policy) -> Option<Latest> {
             url: if url.starts_with("https://") { clean(&url, 300) } else { String::new() }, below: clean(&f("below"), 32) };
         (!ann.id.is_empty() && !ann.message.is_empty()).then_some(ann)
     });
+    let yanked = match j.get("yanked") {
+        Some(Json::Arr(v)) => v.iter().filter_map(Json::str).map(|s| clean(s, 32)).collect(),
+        _ => Vec::new(),
+    };
+    let rollout = match j.get("rollout") { Some(Json::Num(n)) => n.clamp(0.0, 100.0) as u8, _ => 100 };
     Some(Latest {
+        yanked,
+        rollout,
         announcement,
         page: j.get("page").and_then(Json::str).map(String::from).unwrap_or_else(|| format!("https://github.com/{REPO}/releases")),
         security: matches!(j.get("security"), Some(Json::Bool(true))) || notes.to_lowercase().contains("[security]"),
@@ -297,7 +328,7 @@ fn cache_file() -> Option<PathBuf> {
 
 fn to_cache(l: &Latest) -> String {
     let a = l.announcement.clone().unwrap_or(Announcement { id: String::new(), level: String::new(), message: String::new(), url: String::new(), below: String::new() });
-    format!("{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n", now(), l.version, l.page, l.security as u8, a.id, a.level, a.url, a.below, a.message)
+    format!("{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n", now(), l.version, l.page, l.security as u8, a.id, a.level, a.url, a.below, a.message, l.rollout, l.yanked.join(","))
 }
 
 fn from_cache(text: &str) -> Option<(u64, Option<Latest>)> {
@@ -308,7 +339,8 @@ fn from_cache(text: &str) -> Option<(u64, Option<Latest>)> {
     }
     let g = |i: usize| v.get(i).copied().unwrap_or("").to_string();
     let announcement = (!g(4).is_empty()).then(|| Announcement { id: g(4), level: g(5), url: g(6), below: g(7), message: g(8) });
-    Some((stamp, Some(Latest { version: g(1), page: g(2), notes: String::new(), security: g(3) == "1", asset: None, announcement })))
+    let yanked = g(10).split(',').filter(|s| !s.is_empty()).map(String::from).collect();
+    Some((stamp, Some(Latest { version: g(1), page: g(2), notes: String::new(), security: g(3) == "1", asset: None, announcement, rollout: g(9).parse().unwrap_or(100), yanked })))
 }
 
 /// The manifest, fetched at most once a day (cached on disk). None when checks aren't allowed.
@@ -333,7 +365,19 @@ fn latest_cached() -> Option<Latest> {
 /// Cached daily check for interactive use. Returns the newer release, if any. Use this to feed your own
 /// notification system; `notify` is the built-in one-line version.
 pub fn check(current: &str) -> Option<Latest> {
-    latest_cached().filter(|l| is_newer(&l.version, current))
+    latest_cached().filter(|l| l.offered_to(current, rollout_bucket()))
+}
+
+/// This copy's rollout bucket, 0-99: picked at random once and kept locally. Never sent anywhere.
+pub fn rollout_bucket() -> u8 {
+    let Some(f) = cache_file().map(|c| c.with_file_name("rollout-bucket")) else { return 0 };
+    if let Some(b) = fs::read_to_string(&f).ok().and_then(|s| s.trim().parse::<u8>().ok()).filter(|b| *b < 100) {
+        return b;
+    }
+    let seed = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.subsec_nanos() as u64 ^ d.as_secs()).unwrap_or(0) ^ std::process::id() as u64;
+    let b = (seed % 100) as u8;
+    let _ = fs::write(&f, b.to_string());
+    b
 }
 
 /// The publisher's current announcement, if it applies to this version and hasn't been shown yet.
@@ -368,7 +412,9 @@ pub fn notify(current: &str) {
 
 pub fn notice_line(l: &Latest, current: &str) -> String {
     let how = if is_homebrew() { format!("brew upgrade {BINARY}") } else { format!("{BINARY} upgrade") };
-    if l.security {
+    if l.is_yanked(current) {
+        format!("⚠️  {BINARY} {current} was pulled by its publisher. Run `{how}` to move to {} · {}", l.version, l.page)
+    } else if l.security {
         format!("⚠️  SECURITY UPDATE: {BINARY} {} fixes a security issue (you have {current}). Run `{how}` · {}", l.version, l.page)
     } else {
         format!("{BINARY} {} is available (you have {current}) · `{how}` · what's new: {}", l.version, l.page)
@@ -416,7 +462,8 @@ pub fn upgrade_at(exe: &Path, current: &str, rollback: bool, p: &Policy) -> Resu
     }
     let body = String::from_utf8(curl(p, &[&p.manifest]).ok_or("couldn't read the release manifest")?).map_err(|_| "bad manifest")?;
     let latest = parse_manifest(&body, &platform_key(), p).ok_or("bad manifest")?;
-    if !is_newer(&latest.version, current) {
+    // An explicit upgrade ignores staged rollout; a pulled (yanked) version may move back to an older good one.
+    if !is_newer(&latest.version, current) && !(latest.is_yanked(current) && latest.version != current.trim_start_matches('v')) {
         return Ok(format!("{BINARY} {current} is the latest version."));
     }
     let asset = latest.asset.ok_or(format!("release {} has no build for {}", latest.version, platform_key()))?;
@@ -497,6 +544,20 @@ mod tests {
     }
 
     #[test]
+    fn rollout_yank_and_cache() {
+        let p = Policy { manifest: String::new(), url_prefix: "https://github.com/".into(), allow_file: false };
+        let l = parse_manifest(r#"{"version":"1.2.0","rollout":25,"yanked":["1.3.0"]}"#, "k", &p).unwrap();
+        assert!(l.offered_to("1.0.0", 10) && !l.offered_to("1.0.0", 60)); // inside / outside the 25%
+        assert!(l.offered_to("1.3.0", 99)); // pulled version: always told, even outside the rollout
+        assert!(!l.offered_to("1.2.0", 0));
+        let sec = parse_manifest(r#"{"version":"1.2.0","rollout":0,"security":true}"#, "k", &p).unwrap();
+        assert!(sec.offered_to("1.0.0", 99)); // security ignores rollout
+        let back = from_cache(&to_cache(&l)).unwrap().1.unwrap();
+        assert_eq!((back.rollout, back.yanked.clone()), (25, vec!["1.3.0".to_string()]));
+        assert!(notice_line(&l, "1.3.0").contains("pulled"));
+    }
+
+    #[test]
     fn announcements_are_cleaned_and_cached() {
         let p = Policy { manifest: String::new(), url_prefix: "https://github.com/".into(), allow_file: false };
         let body = r#"{"version":"1.0.0","announcement":{"id":"a1","level":"warning","message":"hi\u001b[31m there\nok","url":"javascript:x","below":"2.0.0"}}"#;
@@ -537,6 +598,10 @@ mod tests {
         assert!(upgrade_at(&exe, "9.9.9", false, &test_policy(&m)).unwrap().contains("latest"));
         upgrade_at(&exe, "9.9.9", true, &test_policy(&m)).unwrap();
         assert_eq!(fs::read_to_string(&exe).unwrap(), "old");
+        // a yanked newer version moves back to the manifest's (older) good version
+        fs::write(&m, manifest(&url, &sha).replace(r#""notes":"fix""#, r#""notes":"fix","yanked":["10.0.0"]"#)).unwrap();
+        assert!(upgrade_at(&exe, "10.0.0", false, &test_policy(&m)).unwrap().contains("9.9.9"));
+        assert_eq!(fs::read_to_string(&exe).unwrap(), "new");
         let _ = fs::remove_dir_all(&root);
     }
 }

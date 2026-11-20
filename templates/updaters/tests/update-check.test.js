@@ -39,6 +39,17 @@ test("announcements: cleaned, https-only links", () => {
   assert.strictEqual(u.parseManifest(JSON.stringify({ version: "1", announcement: { id: "", message: "x" } }), "k", p).announcement, null);
 });
 
+test("rollout, yank, security, beta channel", () => {
+  const p = u.policy({ manifest: "x", urlPrefix: "https://github.com/" });
+  const l = u.parseManifest(JSON.stringify({ version: "1.2.0", rollout: 25, yanked: ["1.3.0"] }), "k", p);
+  assert.ok(u.offeredTo(l, "1.0.0", 10) && !u.offeredTo(l, "1.0.0", 60));
+  assert.ok(u.offeredTo(l, "1.3.0", 99));
+  assert.match(u.noticeLine(l, "1.3.0"), /pulled/);
+  assert.ok(u.offeredTo(u.parseManifest(JSON.stringify({ version: "1.2.0", rollout: 0, security: true }), "k", p), "1.0.0", 99));
+  process.env["{{ENV}}_CHANNEL"] = "beta";
+  try { assert.match(u.policy().manifest, /\/releases\/download\/channel\/beta\.json$/); } finally { delete process.env["{{ENV}}_CHANNEL"]; }
+});
+
 test("no checks in CI", async () => {
   process.env.CI = "1";
   try { assert.strictEqual(u.checksAllowed(), false); assert.strictEqual(await u.check("0.0.1"), null); } finally { delete process.env.CI; }
@@ -63,5 +74,8 @@ test("upgrade: tampered refused, good swapped, rollback", { skip: process.platfo
   assert.strictEqual(fs.readFileSync(exe, "utf8"), "new");
   await u.upgradeAt(exe, "9.9.9", true, p);
   assert.strictEqual(fs.readFileSync(exe, "utf8"), "old");
+  fs.writeFileSync(m, manifest(url, sha).replace('"notes":"n"', '"notes":"n","yanked":["10.0.0"]'));
+  assert.match(await u.upgradeAt(exe, "10.0.0", false, p), /9\.9\.9/);
+  assert.strictEqual(fs.readFileSync(exe, "utf8"), "new");
   fs.rmSync(d, { recursive: true, force: true });
 });

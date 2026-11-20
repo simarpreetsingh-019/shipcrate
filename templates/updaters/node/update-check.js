@@ -9,6 +9,8 @@
 //       const latest = await update.check(version);          // or feed your own notification system
 //       console.log(await update.upgrade(version, rollback));  // `{{BINARY}} upgrade [--rollback]`
 // Announcements (scripts/announce.sh) print once per message inside notify(); or read them with announcement().
+// Beta channel: {{ENV}}_CHANNEL=beta reads the beta manifest (pre-releases plus every stable release).
+// Staged rollouts ("rollout": N) and pulled versions ("yanked") are handled for you.
 // A mirror or your own update server: {{ENV}}_UPDATE_MANIFEST=https://…/latest.json (same format).
 "use strict";
 const fs = require("node:fs");
@@ -22,6 +24,7 @@ const REPO = "{{REPO}}";
 const BINARY = "{{BINARY}}";
 const OPT_OUT = "{{ENV}}_NO_UPDATE_CHECK";
 const MANIFEST_ENV = "{{ENV}}_UPDATE_MANIFEST";
+const CHANNEL_ENV = "{{ENV}}_CHANNEL";
 const DAY = 86400 * 1000;
 
 function checksAllowed() {
@@ -50,7 +53,9 @@ function policy(opts = {}) {
   const env = process.env[MANIFEST_ENV] || "";
   const custom = !opts.manifest && env.startsWith("https://");
   return {
-    manifest: opts.manifest || (custom ? env : `https://github.com/${REPO}/releases/latest/download/latest.json`),
+    manifest: opts.manifest || (custom ? env : process.env[CHANNEL_ENV] === "beta"
+      ? `https://github.com/${REPO}/releases/download/channel/beta.json`
+      : `https://github.com/${REPO}/releases/latest/download/latest.json`),
     urlPrefix: opts.urlPrefix || (custom ? "https://" : `https://github.com/${REPO}/releases/download/`),
     allowFile: Boolean(opts.allowFile), // tests only
   };
@@ -89,7 +94,26 @@ function parseManifest(body, key, p) {
   }
   const notes = j.notes || "";
   return { version: String(j.version).replace(/^v/, ""), page: j.page || `https://github.com/${REPO}/releases`, notes,
-    security: j.security === true || notes.toLowerCase().includes("[security]"), asset, announcement: parseAnnouncement(j.announcement) };
+    security: j.security === true || notes.toLowerCase().includes("[security]"), asset, announcement: parseAnnouncement(j.announcement),
+    yanked: (Array.isArray(j.yanked) ? j.yanked : []).filter((v) => typeof v === "string").map((v) => clean(v, 32).replace(/^v/, "")),
+    rollout: typeof j.rollout === "number" ? Math.max(0, Math.min(100, Math.floor(j.rollout))) : 100 };
+}
+
+const isYanked = (l, current) => (l.yanked || []).includes(String(current).replace(/^v/, ""));
+
+// Yanked → always (if there's somewhere to go); security → always; otherwise by rollout bucket.
+function offeredTo(l, current, bucket) {
+  if (isYanked(l, current)) return l.version !== String(current).replace(/^v/, "");
+  return isNewer(l.version, current) && (l.security || bucket < (l.rollout ?? 100));
+}
+
+// This copy's bucket, 0-99: random once, kept locally, never sent anywhere.
+function rolloutBucket() {
+  const f = path.join(path.dirname(cacheFile()), "rollout-bucket");
+  try { const b = parseInt(fs.readFileSync(f, "utf8"), 10); if (b >= 0 && b < 100) return b; } catch {}
+  const b = crypto.randomInt(100);
+  try { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, String(b)); } catch {}
+  return b;
 }
 
 async function fetchLatest(p = policy()) {
@@ -119,7 +143,7 @@ async function latestCached() {
 // Cached daily check for interactive use. Resolves to the newer release, or null.
 async function check(current) {
   const l = await latestCached();
-  return l && isNewer(l.version, current) ? l : null;
+  return l && offeredTo(l, current, rolloutBucket()) ? l : null;
 }
 
 // The publisher's announcement if it applies to this version and wasn't shown yet; marks it shown.
@@ -138,6 +162,7 @@ function announcementLine(a) {
 }
 
 function noticeLine(l, current) {
+  if (isYanked(l, current)) return `⚠️  ${BINARY} ${current} was pulled by its publisher. Run \`${how()}\` to move to ${l.version} · ${l.page}`;
   return l.security
     ? `⚠️  SECURITY UPDATE: ${BINARY} ${l.version} fixes a security issue (you have ${current}). Run \`${how()}\` · ${l.page}`
     : `${BINARY} ${l.version} is available (you have ${current}) · \`${how()}\` · what's new: ${l.page}`;
@@ -166,7 +191,9 @@ async function upgradeAt(exe, current, rollback, p) {
   }
   let latest;
   try { latest = parseManifest(await get(p.manifest, p), platformKey(), p); } catch { return "Couldn't read the release manifest."; }
-  if (!isNewer(latest.version, current)) return `${BINARY} ${current} is the latest version.`;
+  // An explicit upgrade ignores staged rollout; a pulled (yanked) version may move back to an older good one.
+  if (!isNewer(latest.version, current) && !(isYanked(latest, current) && latest.version !== String(current).replace(/^v/, "")))
+    return `${BINARY} ${current} is the latest version.`;
   if (!latest.asset) return `Release ${latest.version} has no build for ${platformKey()}.`;
   const tmp = fs.mkdtempSync(path.join(dir, `.${BINARY}-upgrade-`));
   try {
@@ -190,4 +217,4 @@ async function upgradeAt(exe, current, rollback, p) {
   }
 }
 
-module.exports = { clean, announcement, announcementLine, checksAllowed, isNewer, platformKey, policy, parseManifest, fetchLatest, check, noticeLine, notify, upgrade, upgradeAt };
+module.exports = { isYanked, offeredTo, rolloutBucket, clean, announcement, announcementLine, checksAllowed, isNewer, platformKey, policy, parseManifest, fetchLatest, check, noticeLine, notify, upgrade, upgradeAt };

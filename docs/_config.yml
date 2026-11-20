@@ -23,8 +23,12 @@ defaults:
   - scope: { path: "security.md" }
     values: { layout: doc, permalink: /security/, title: "Security", kicker: "Trust",
               description: "What shipcrate guarantees for every release, the tests that guard it, and its limits.",
-              prev: ["Platforms", "/platforms/"], next: ["Contributing", "/contributing/"] }
+              prev: ["Platforms", "/platforms/"], next: ["AI agents", "/agents/"] }
+  - scope: { path: "agents.md" }
+    values: { layout: doc, permalink: /agents/, title: "AI agents", kicker: "Agents",
+              description: "Connect Claude Code, Codex, Cursor, VS Code or any agent. One command each.",
+              prev: ["Security", "/security/"], next: ["Contributing", "/contributing/"] }
   - scope: { path: "contributing.md" }
     values: { layout: doc, permalink: /contributing/, title: "Contributing", kicker: "Community",
               description: "Fix a bug, add a language or platform, or improve the docs.",
-              prev: ["Security", "/security/"] }
+              prev: ["AI agents", "/agents/"] }

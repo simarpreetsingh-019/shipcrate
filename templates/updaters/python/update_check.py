@@ -10,6 +10,8 @@ Use:
     latest = update_check.check(__version__)         # or feed your own notification system
     print(update_check.upgrade(__version__))         # `{{BINARY}} upgrade` (rollback=True for --rollback)
 Announcements (scripts/announce.sh) print once per message inside notify(); or read them with announcement().
+Beta channel: {{ENV}}_CHANNEL=beta reads the beta manifest (pre-releases plus every stable release).
+Staged rollouts ("rollout": N) and pulled versions ("yanked") are handled for you.
 A mirror or your own update server: {{ENV}}_UPDATE_MANIFEST=https://…/latest.json (same format).
 """
 import hashlib, io, json, os, platform, shutil, sys, tarfile, tempfile, time, urllib.request, zipfile
@@ -19,6 +21,7 @@ REPO = "{{REPO}}"
 BINARY = "{{BINARY}}"
 OPT_OUT = "{{ENV}}_NO_UPDATE_CHECK"
 MANIFEST_ENV = "{{ENV}}_UPDATE_MANIFEST"
+CHANNEL_ENV = "{{ENV}}_CHANNEL"
 DAY = 86400
 
 
@@ -52,7 +55,9 @@ class Policy:
         env = os.environ.get(MANIFEST_ENV, "")
         if manifest is None and env.startswith("https://"):
             manifest, url_prefix = env, "https://"
-        self.manifest = manifest or f"https://github.com/{REPO}/releases/latest/download/latest.json"
+        beta = os.environ.get(CHANNEL_ENV) == "beta"
+        self.manifest = manifest or (f"https://github.com/{REPO}/releases/download/channel/beta.json" if beta
+                                     else f"https://github.com/{REPO}/releases/latest/download/latest.json")
         self.url_prefix = url_prefix or f"https://github.com/{REPO}/releases/download/"
         self.allow_file = allow_file  # tests only
 
@@ -96,7 +101,39 @@ def parse_manifest(body, key, policy):
     notes = j.get("notes") or ""
     return {"version": str(j["version"]).lstrip("v"), "page": j.get("page") or f"https://github.com/{REPO}/releases",
             "notes": notes, "security": bool(j.get("security")) or "[security]" in notes.lower(), "asset": asset,
-            "announcement": _announcement(j.get("announcement"))}
+            "announcement": _announcement(j.get("announcement")),
+            "yanked": [clean(v, 32).lstrip("v") for v in (j.get("yanked") or []) if isinstance(v, str)],
+            "rollout": max(0, min(100, int(j.get("rollout", 100)))) if isinstance(j.get("rollout", 100), (int, float)) else 100}
+
+
+def is_yanked(latest, current):
+    return current.lstrip("v") in (latest.get("yanked") or [])
+
+
+def offered_to(latest, current, bucket):
+    """Yanked → always (if there's somewhere to go); security → always; otherwise by rollout bucket."""
+    if is_yanked(latest, current):
+        return latest["version"] != current.lstrip("v")
+    return is_newer(latest["version"], current) and (latest.get("security") or bucket < latest.get("rollout", 100))
+
+
+def rollout_bucket():
+    """This copy's bucket, 0-99: random once, kept locally, never sent anywhere."""
+    f = _cache_file().with_name("rollout-bucket")
+    try:
+        b = int(f.read_text().strip())
+        if 0 <= b < 100:
+            return b
+    except (OSError, ValueError):
+        pass
+    import random
+    b = random.SystemRandom().randrange(100)
+    try:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(str(b))
+    except OSError:
+        pass
+    return b
 
 
 def fetch_latest(policy=None):
@@ -152,7 +189,7 @@ def _latest_cached():
 def check(current):
     """Cached daily check for interactive use. Returns the newer release (dict) or None."""
     latest = _latest_cached()
-    return latest if latest and is_newer(latest["version"], current) else None
+    return latest if latest and offered_to(latest, current, rollout_bucket()) else None
 
 
 def announcement(current):
@@ -179,6 +216,9 @@ def announcement_line(a):
 
 
 def notice_line(latest, current):
+    if is_yanked(latest, current):
+        return (f"⚠️  {BINARY} {current} was pulled by its publisher. Run `{_how()}` to move to {latest['version']} · "
+                f"{latest['page']}")
     if latest["security"]:
         return (f"⚠️  SECURITY UPDATE: {BINARY} {latest['version']} fixes a security issue (you have {current}). "
                 f"Run `{_how()}` · {latest['page']}")
@@ -213,7 +253,8 @@ def upgrade_at(exe, current, rollback, policy):
         latest = parse_manifest(policy.get(policy.manifest), platform_key(), policy)
     except Exception:
         return "Couldn't read the release manifest."
-    if not is_newer(latest["version"], current):
+    # An explicit upgrade ignores staged rollout; a pulled (yanked) version may move back to an older good one.
+    if not is_newer(latest["version"], current) and not (is_yanked(latest, current) and latest["version"] != current.lstrip("v")):
         return f"{BINARY} {current} is the latest version."
     a = latest["asset"]
     if not a:

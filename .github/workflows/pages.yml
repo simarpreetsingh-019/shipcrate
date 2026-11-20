@@ -3,7 +3,7 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: ["docs/**", "SECURITY.md", "CONTRIBUTING.md", ".github/workflows/pages.yml"]
+    paths: ["docs/**", "SECURITY.md", "CONTRIBUTING.md", "llms.txt", ".github/workflows/pages.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Assemble the site
         run: |
-          mkdir -p site && cp -R docs/. site/
+          mkdir -p site && cp -R docs/. site/ && cp llms.txt site/llms.txt
           B=https://github.com/simarpreetsingh-019/shipcrate/blob/main
           for f in SECURITY CONTRIBUTING; do
             out="site/$(echo "$f" | tr 'A-Z' 'a-z').md"

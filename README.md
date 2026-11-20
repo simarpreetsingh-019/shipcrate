@@ -29,6 +29,7 @@ Already have releases or a notification system? See [docs/INTEGRATING.md](docs/I
 you need, send update notices through your own channels, or have each release POST to your push server.
 Platforms: [docs/PLATFORMS.md](docs/PLATFORMS.md).
 Message every user without a release: `sh scripts/announce.sh "…"`. Demo push receiver: [examples/notify-receiver](examples/notify-receiver).
+Beta channel, staged rollout (`--rollout 10` → `scripts/rollout.sh 100`) and rollback for everyone (`scripts/yank.sh`): see [Integrating](docs/INTEGRATING.md).
 
 ## What you get
 
@@ -78,6 +79,9 @@ shipcrate init --name msh --type cli --lang rust --repo you/modelshelf --desc "L
 commands, and route `msh upgrade [--rollback]` to `update::upgrade`.
 
 ## For AI agents
+
+- **MCP server:** `claude mcp add shipcrate -- node ~/.shipcrate/mcp/server.js` (or `codex mcp add …`). It has tools to set up, gate, preview, check status and verify. There are no publishing tools: your agent runs those scripts where you can see and approve them. Cursor and VS Code one-click buttons: [AI agents](https://simarpreetsingh-019.github.io/shipcrate/agents/).
+- **llms.txt:** [llms.txt](llms.txt) is a one-page brief any agent can read.
 
 - **Claude Code / Codex:** `sh skills/install.sh` copies `skills/shipcrate/SKILL.md` to `~/.claude/skills/shipcrate`
   and `~/.codex/skills/shipcrate` (asks first). The repo also ships `.agents/skills/shipcrate/`.

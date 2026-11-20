@@ -30,26 +30,10 @@ else
 fi
 
 ID=$(date -u +%Y%m%dT%H%M%SZ)
-LINE=""
-if [ $CLEAR = 0 ]; then
-  LINE=$(printf '  "announcement": { "id": "%s", "level": "%s", "message": %s, "url": "%s", "below": "%s" }' \
-    "$ID" "$LEVEL" "$(printf '%s' "$MSG" | json_string)" "$URL" "$BELOW")
-fi
-# Drop any previous announcement, then add the new one as the last key.
-ADD="$LINE" awk '
-  BEGIN { add = ENVIRON["ADD"] }
-  /^  "announcement":/ { next }
-  { lines[++n] = $0 }
-  END {
-    last = n; while (last > 0 && lines[last] !~ /^}/) last--
-    for (i = 1; i < last; i++) {
-      l = lines[i]
-      if (add != "" && i == last - 1) { sub(/,?[ ]*$/, ",", l) } else if (i == last - 1) { sub(/,[ ]*$/, "", l) }
-      print l
-    }
-    if (add != "") print add
-    for (i = last; i <= n; i++) print lines[i]
-  }' "$TMP/latest.json" > "$TMP/new.json"
+cp "$TMP/latest.json" "$TMP/new.json"
+if [ $CLEAR = 1 ]; then manifest_set "$TMP/new.json" announcement ""
+else manifest_set "$TMP/new.json" announcement "$(printf '{ "id": "%s", "level": "%s", "message": %s, "url": "%s", "below": "%s" }' \
+  "$ID" "$LEVEL" "$(printf '%s' "$MSG" | json_string)" "$URL" "$BELOW")"; fi
 
 if [ -n "$FILE" ]; then cp "$TMP/new.json" "$FILE"; echo "✓ updated $FILE"; exit 0; fi
 echo "Announcement for everyone on $PRODUCT${BELOW:+ below $BELOW} (level: $LEVEL):"

@@ -73,6 +73,26 @@ class Announcements(unittest.TestCase):
                 del os.environ["XDG_CACHE_HOME"]
 
 
+class RolloutAndYank(unittest.TestCase):
+    def test_rules(self):
+        p = u.Policy(manifest="x", url_prefix="https://github.com/")
+        l = u.parse_manifest(json.dumps({"version": "1.2.0", "rollout": 25, "yanked": ["1.3.0"]}), "k", p)
+        self.assertTrue(u.offered_to(l, "1.0.0", 10))
+        self.assertFalse(u.offered_to(l, "1.0.0", 60))
+        self.assertTrue(u.offered_to(l, "1.3.0", 99))
+        self.assertIn("pulled", u.notice_line(l, "1.3.0"))
+        sec = u.parse_manifest(json.dumps({"version": "1.2.0", "rollout": 0, "security": True}), "k", p)
+        self.assertTrue(u.offered_to(sec, "1.0.0", 99))
+
+    def test_beta_channel_url(self):
+        os.environ[u.CHANNEL_ENV] = "beta"
+        try:
+            self.assertTrue(u.Policy().manifest.endswith("/releases/download/channel/beta.json"))
+        finally:
+            del os.environ[u.CHANNEL_ENV]
+        self.assertTrue(u.Policy().manifest.endswith("/releases/latest/download/latest.json"))
+
+
 class Upgrade(unittest.TestCase):
     def test_tampered_refused_good_swapped_rollback(self):
         with tempfile.TemporaryDirectory() as d:
@@ -98,6 +118,10 @@ class Upgrade(unittest.TestCase):
             self.assertIn("latest", u.upgrade_at(exe, "9.9.9", False, p))
             u.upgrade_at(exe, "9.9.9", True, p)
             self.assertEqual(exe.read_text(), "old")
+            # a yanked newer version moves back to the manifest's good version
+            m.write_text(manifest(url, hashlib.sha256(buf.getvalue()).hexdigest()).replace('"notes": "n"', '"notes": "n", "yanked": ["10.0.0"]'))
+            self.assertIn("9.9.9", u.upgrade_at(exe, "10.0.0", False, p))
+            self.assertEqual(exe.read_text(), "new")
 
 
 if __name__ == "__main__":

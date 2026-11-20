@@ -20,6 +20,20 @@ expect(Updater.parseManifest(manifest(good, String(repeating: "a", count: 64)), 
 expect(Updater.parseManifest(manifest("https://evil.example/x.zip", String(repeating: "a", count: 64)), current: "1.0.0") == nil, "refuses other hosts")
 expect(Updater.parseManifest(manifest("http://github.com/x.zip", String(repeating: "a", count: 64)), current: "1.0.0") == nil, "refuses plain http")
 expect(Updater.parseManifest(manifest(good, "abc"), current: "1.0.0") == nil, "refuses a bad checksum")
+func m2(_ extra: [String: Any]) -> Data {
+    var j: [String: Any] = ["version": "1.2.0", "page": "https://github.com/x/y", "notes": "",
+                            "assets": ["macos": ["name": "x.zip", "url": good, "sha256": String(repeating: "a", count: 64)]]]
+    extra.forEach { j[$0.key] = $0.value }
+    return try! JSONSerialization.data(withJSONObject: j)
+}
+expect(Updater.parseManifest(m2(["rollout": 25]), current: "1.0.0", bucket: 10) != nil, "rollout: inside the 25%")
+expect(Updater.parseManifest(m2(["rollout": 25]), current: "1.0.0", bucket: 60) == nil, "rollout: outside the 25%")
+expect(Updater.parseManifest(m2(["rollout": 0, "security": true]), current: "1.0.0", bucket: 99) != nil, "security ignores rollout")
+let back = Updater.parseManifest(m2(["yanked": ["1.3.0"]]), current: "1.3.0", bucket: 99)
+expect(back != nil && back!.replacesYanked, "yanked version is offered the older good release")
+Updater.channel = "beta"
+expect(Updater.manifestURL.absoluteString.hasSuffix("/releases/download/channel/beta.json"), "beta channel URL")
+Updater.channel = "stable"
 let annJSON: [String: Any] = ["version": "1.0.0", "announcement": ["id": "a1", "level": "warning", "message": "hi\u{1b}[31m", "url": "javascript:x", "below": "2.0.0"]]
 let annData = try! JSONSerialization.data(withJSONObject: annJSON)
 let ann = Announcement.parse(annData, current: "1.5.0")

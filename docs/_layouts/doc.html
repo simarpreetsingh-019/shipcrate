@@ -32,6 +32,12 @@
 const toc = document.getElementById('toc'), hs = [...document.querySelectorAll('#prose h2')];
 hs.forEach(h => { if (!h.id) h.id = h.textContent.toLowerCase().replace(/[^a-z0-9]+/g, '-'); const a = document.createElement('a'); a.href = '#' + h.id; a.textContent = h.textContent; toc.appendChild(a); });
 const links = [...toc.querySelectorAll('a')];
+// One-click copy on every code block
+document.querySelectorAll('#prose pre').forEach(pre => {
+  const b = document.createElement('button'); b.className = 'cp'; b.textContent = 'Copy';
+  b.onclick = async () => { try { await navigator.clipboard.writeText(pre.innerText.replace(/\nCopy(ied)?$/, '')); b.textContent = 'Copied'; } catch { b.textContent = 'Select'; } setTimeout(() => b.textContent = 'Copy', 1500); };
+  pre.appendChild(b);
+});
 addEventListener('scroll', () => { let i = 0; hs.forEach((h, k) => { if (h.getBoundingClientRect().top < 120) i = k; }); links.forEach((a, k) => a.classList.toggle('on', k === i)); }, { passive: true });
 </script>
 </body>

@@ -11,4 +11,8 @@ for dest in "$HOME/.claude/skills/shipcrate" "$HOME/.codex/skills/shipcrate"; do
   fi
   mkdir -p "$dest" && cp "$SRC/SKILL.md" "$dest/SKILL.md" && echo "  ✓ $dest/SKILL.md"
 done
-echo "Cursor: copy .cursor/rules/shipcrate.mdc into your project. Others: AGENTS.md."
+echo ""
+echo "Also connect the MCP server (tools for your agent):"
+echo "  claude mcp add shipcrate -- node $(cd "$(dirname "$0")/.." && pwd)/mcp/server.js"
+echo "  codex mcp add shipcrate -- node $(cd "$(dirname "$0")/.." && pwd)/mcp/server.js"
+echo "Cursor, VS Code and others: https://simarpreetsingh-019.github.io/shipcrate/agents/"
