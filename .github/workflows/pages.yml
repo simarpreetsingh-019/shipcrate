@@ -3,7 +3,7 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: ["docs/**", "SECURITY.md", "CONTRIBUTING.md", "llms.txt", ".github/workflows/pages.yml"]
+    paths: ["docs/**", "SECURITY.md", "CONTRIBUTING.md", "llms.txt", "tools/assemble-site.sh", ".github/workflows/pages.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,17 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Assemble the site
-        run: |
-          mkdir -p site && cp -R docs/. site/ && cp llms.txt site/llms.txt
-          B=https://github.com/simarpreetsingh-019/shipcrate/blob/main
-          for f in SECURITY CONTRIBUTING; do
-            out="site/$(echo "$f" | tr 'A-Z' 'a-z')-page.md"   # GitHub's Jekyll ignores files named CONTRIBUTING*
-            # front matter: GitHub's Jekyll skips CONTRIBUTING-style files without it; raw keeps {{…}} literal
-            printf -- '---\n---\n{%% raw %%}\n' > "$out"
-            sed -e "s#](docs/PLATFORMS.md)#](../platforms/)#g; s#](docs/INTEGRATING.md)#](../integrating/)#g" \
-                -e "s#](templates/#]($B/templates/#g; s#](LICENSE)#]($B/LICENSE)#g; s#](tests/#]($B/tests/#g" "$f.md" >> "$out"
-            printf '\n{%% endraw %%}\n' >> "$out"
-          done
+        run: sh tools/assemble-site.sh
       - uses: actions/configure-pages@v5
       - uses: actions/jekyll-build-pages@v1
         with:
