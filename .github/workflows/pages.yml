@@ -24,7 +24,8 @@ jobs:
             # front matter: GitHub's Jekyll skips CONTRIBUTING-style files without it; raw keeps {{…}} literal
             printf -- '---\n---\n{%% raw %%}\n' > "$out"
             sed -e "s#](docs/PLATFORMS.md)#](../platforms/)#g; s#](docs/INTEGRATING.md)#](../integrating/)#g" \
-                -e "s#](templates/#]($B/templates/#g; s#](LICENSE)#]($B/LICENSE)#g; s#](tests/#]($B/tests/#g" "$f.md" > "$out"
+                -e "s#](templates/#]($B/templates/#g; s#](LICENSE)#]($B/LICENSE)#g; s#](tests/#]($B/tests/#g" "$f.md" >> "$out"
+            printf '\n{%% endraw %%}\n' >> "$out"
           done
       - uses: actions/configure-pages@v5
       - uses: actions/jekyll-build-pages@v1
