@@ -8,5 +8,20 @@
     <li><a href="{{ '/security/' | relative_url }}" {% if page.url == '/security/' %}class="on"{% endif %}>Security</a></li>
     <li><a href="{{ '/agents/' | relative_url }}" {% if page.url == '/agents/' %}class="on"{% endif %}>AI agents</a></li>
   </ul>
-  <a class="star" href="https://github.com/simarpreetsingh-019/shipcrate" title="Opens GitHub: click ★ Star there">★ <span class="long">Star on GitHub ↗</span> <b data-stars>–</b></a>
+  <div class="navr"><button class="share" type="button" data-share aria-label="Share shipcrate"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg><span class="long">Share</span></button>
+  <a class="star" href="https://github.com/simarpreetsingh-019/shipcrate" title="Opens GitHub: click ★ Star there">★ <span class="long">Star on GitHub ↗</span> <b data-stars>–</b></a></div>
 </div></nav>
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-card" role="dialog" aria-label="Share shipcrate">
+    <b>Share shipcrate</b>
+    <div class="sheet-grid">
+      <a data-net="x" target="_blank" rel="noopener">𝕏<span>X</span></a>
+      <a data-net="linkedin" target="_blank" rel="noopener">in<span>LinkedIn</span></a>
+      <a data-net="reddit" target="_blank" rel="noopener">◉<span>Reddit</span></a>
+      <a data-net="hn" target="_blank" rel="noopener">Y<span>Hacker News</span></a>
+      <a data-net="bsky" target="_blank" rel="noopener">🦋<span>Bluesky</span></a>
+      <a data-net="email">✉<span>Email</span></a>
+    </div>
+    <button class="sheet-copy" type="button" data-copylink>Copy link</button>
+  </div>
+</div>

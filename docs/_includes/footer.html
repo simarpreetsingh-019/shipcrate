@@ -17,6 +17,27 @@
   <div class="fine"><span>© 2026 Simarpreet Singh · MIT · Built in the open</span><span class="mono">0 analytics · 0 cookies · 100% gated</span></div>
 </div></footer>
 <script>
+// Share: the system share sheet where there is one (phones, Safari), otherwise our own sheet.
+(() => {
+  const url = location.href.split('#')[0], title = document.title;
+  const text = 'shipcrate: release & update tooling in one command. Checksums, provenance, Homebrew and update checks for macOS, Linux and Windows.';
+  const sheet = document.getElementById('sheet'), e = encodeURIComponent;
+  const links = { x: `https://x.com/intent/post?text=${e(text)}&url=${e(url)}&via=simarpreet_019`,
+    linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${e(url)}`,
+    reddit: `https://www.reddit.com/submit?url=${e(url)}&title=${e(title)}`,
+    hn: `https://news.ycombinator.com/submitlink?u=${e(url)}&t=${e(title)}`,
+    bsky: `https://bsky.app/intent/compose?text=${e(text + ' ' + url)}`,
+    email: `mailto:?subject=${e(title)}&body=${e(text + '\n\n' + url)}` };
+  sheet.querySelectorAll('[data-net]').forEach(a => a.href = links[a.dataset.net]);
+  document.querySelectorAll('[data-share]').forEach(b => b.addEventListener('click', async () => {
+    if (navigator.share && matchMedia('(pointer:coarse)').matches) { try { await navigator.share({ title, text, url }); return; } catch {} }
+    sheet.hidden = false;
+  }));
+  sheet.addEventListener('click', ev => { if (ev.target === sheet) sheet.hidden = true; });
+  addEventListener('keydown', ev => { if (ev.key === 'Escape') sheet.hidden = true; });
+  const c = sheet.querySelector('[data-copylink]');
+  c.addEventListener('click', async () => { try { await navigator.clipboard.writeText(url); c.textContent = 'Link copied ✓'; } catch { c.textContent = url; } setTimeout(() => c.textContent = 'Copy link', 1800); });
+})();
 // Live star count (one anonymous request to GitHub's public API; no tracking).
 (async () => { try {
   const r = await fetch('https://api.github.com/repos/simarpreetsingh-019/shipcrate'); if (!r.ok) return;

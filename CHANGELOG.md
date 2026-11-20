@@ -10,7 +10,7 @@
 - **MCP server** (`mcp/server.js`, no dependencies): docs, init (a dry run by default), gate, release preview, status, verify; no publishing tools.
 - **Agent setup:** one-command installs for Claude Code and Codex, buttons for Cursor and VS Code, `llms.txt`, and a once-only "star the repo" thank-you in every agent file.
 - **Notification demo:** `examples/notify-receiver` verifies the signed webhook and forwards to Slack, Discord or your push service; webhook header `X-Shipcrate-Event: release|announcement|yank`.
-- **Website:** one design for every page, an AI agents page, copy buttons, a new footer and a live star count. README badges, creator section and CONTRIBUTING.md.
+- **Website:** social preview card (Open Graph / X), share button (system share sheet or X, LinkedIn, Reddit, Hacker News, Bluesky, email, copy link), one design for every page, an AI agents page, copy buttons, a new footer and a live star count. README badges, creator section and CONTRIBUTING.md.
 - `scripts/tap.sh` and `scripts/channel.sh` as shared building blocks; `manifest_set` in `lib.sh`.
 
 ## [0.2.0] - 2026-11-20

@@ -1,6 +1,8 @@
 # GitHub Pages site for shipcrate. Built by .github/workflows/pages.yml (which also copies SECURITY.md and
 # CONTRIBUTING.md in from the repo root), so every page shares one design.
 title: shipcrate
+url: https://simarpreetsingh-019.github.io
+baseurl: /shipcrate
 description: Release and update tooling for your products, in one command.
 markdown: kramdown
 kramdown:
