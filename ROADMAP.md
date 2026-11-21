@@ -2,6 +2,31 @@
 
 Planned work, roughly in order. Ideas and help are welcome: open an issue first for anything big.
 
+## Learned from other tools (top priority)
+
+Ideas from GoReleaser, dist (cargo-dist), Sparkle, Velopack, the Tauri updater and release-please:
+
+- [ ] **Signed updates** (Sparkle uses EdDSA, Tauri uses minisign): sign `latest.json` and every file with an
+      Ed25519 key, and embed the public key in the app/CLI, so updaters verify it themselves even if GitHub or a
+      mirror were compromised. Today clients check SHA-256 from the manifest over HTTPS; provenance is checked only
+      by `gh attestation verify`.
+- [ ] **`shipcrate` as one installable command** (GoReleaser and dist are single tools): `brew install shipcrate`,
+      with `shipcrate release | check | rollout | yank | announce | status | doctor`, released with shipcrate itself.
+- [ ] **Timed phased rollout** (Sparkle spreads an update over 7 days): `--rollout-days 7` grows the percentage
+      on the client from the publish date, with no follow-up commands.
+- [ ] **Minimum version / critical update** (Sparkle has critical updates): `--min-version X` makes older copies
+      show a must-update notice.
+- [ ] **Automatic versions and changelog** (release-please, changesets): suggest the next version and write
+      the CHANGELOG section from conventional commits.
+- [ ] **SBOM and Sigstore/cosign signing** (GoReleaser): an SBOM per release (syft) and keyless signatures next to the provenance.
+- [ ] **Built-in announcers** (GoReleaser, dist): post releases to X, Bluesky, Mastodon, Discord and Slack without
+      running your own webhook server.
+- [ ] **Delta updates for big apps** (Sparkle, Velopack): download only what changed.
+- [ ] **Immutable releases compatibility** (GitHub immutable releases, GoReleaser v2.16): keep editable data
+      (rollout, announcements, yanks) in the `channel` release, so release files are never re-uploaded.
+- [ ] **Brand theming** for the update UI: Swift `UpdaterTheme` (colors, radius, icons, wording) and a CLI message
+      template with an optional color that respects `NO_COLOR`.
+
 ## Next
 
 - [ ] **Windows and Linux desktop apps.** Support GUI apps beyond the macOS `.app`: Tauri, Electron, .NET and
