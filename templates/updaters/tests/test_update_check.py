@@ -73,6 +73,18 @@ class Announcements(unittest.TestCase):
                 del os.environ["XDG_CACHE_HOME"]
 
 
+class Loopback(unittest.TestCase):
+    def test_only_this_machine(self):
+        self.assertEqual(u.loopback_origin("http://127.0.0.1:8123/latest.json"), "http://127.0.0.1:8123/")
+        self.assertIsNone(u.loopback_origin("http://127.0.0.1.evil.com/x"))
+        self.assertIsNone(u.loopback_origin("http://example.com/x"))
+        os.environ[u.MANIFEST_ENV] = "http://example.com/latest.json"
+        try:
+            self.assertTrue(u.Policy().manifest.startswith("https://github.com/"))  # plain http elsewhere is ignored
+        finally:
+            del os.environ[u.MANIFEST_ENV]
+
+
 class RolloutAndYank(unittest.TestCase):
     def test_rules(self):
         p = u.Policy(manifest="x", url_prefix="https://github.com/")

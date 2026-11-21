@@ -1,0 +1,17 @@
+# Runs the same quality gate as the pre-push hook, on a clean machine (from shipcrate).
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install lint and audit tools
+        run: sh scripts/ci-tools.sh
+      - name: Quality gate
+        run: sh scripts/check.sh

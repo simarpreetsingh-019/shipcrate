@@ -253,17 +253,29 @@ pub struct Policy {
     pub manifest: String,
     pub url_prefix: String,
     pub allow_file: bool, // tests only
+    pub allow_http_local: bool, // a manifest on this machine (http://127.0.0.1 or localhost): demos and local testing
+}
+
+/// "http://127.0.0.1:8000/" for a loopback http URL, else None. Only this machine; never the network.
+pub fn loopback_origin(url: &str) -> Option<String> {
+    let rest = url.strip_prefix("http://")?;
+    let host = rest.split('/').next()?;
+    let name = host.rsplit_once(':').map(|(h, _)| h).unwrap_or(host);
+    matches!(name, "127.0.0.1" | "localhost" | "[::1]").then(|| format!("http://{host}/"))
 }
 
 impl Policy {
     pub fn from_env() -> Policy {
         match env::var(MANIFEST_ENV) {
-            Ok(m) if m.starts_with("https://") => Policy { manifest: m, url_prefix: "https://".into(), allow_file: false },
-            _ => Policy { manifest: default_manifest_url(), url_prefix: format!("https://github.com/{REPO}/releases/download/"), allow_file: false },
+            Ok(m) if m.starts_with("https://") => Policy { manifest: m, url_prefix: "https://".into(), allow_file: false, allow_http_local: false },
+            Ok(m) if loopback_origin(&m).is_some() => {
+                Policy { url_prefix: loopback_origin(&m).unwrap_or_default(), manifest: m, allow_file: false, allow_http_local: true }
+            }
+            _ => Policy { manifest: default_manifest_url(), url_prefix: format!("https://github.com/{REPO}/releases/download/"), allow_file: false, allow_http_local: false },
         }
     }
     fn proto(&self) -> &str {
-        if self.allow_file { "=https,file" } else { "=https" }
+        if self.allow_file { "=https,file" } else if self.allow_http_local { "=https,http" } else { "=https" }
     }
 }
 
@@ -506,7 +518,7 @@ mod tests {
     use super::*;
 
     fn test_policy(manifest: &Path) -> Policy {
-        Policy { manifest: format!("file://{}", manifest.display()), url_prefix: "https://github.com/".into(), allow_file: true }
+        Policy { manifest: format!("file://{}", manifest.display()), url_prefix: "https://github.com/".into(), allow_file: true, allow_http_local: false }
     }
 
     #[test]
@@ -533,7 +545,7 @@ mod tests {
 
     #[test]
     fn manifest_rules() {
-        let p = Policy { manifest: String::new(), url_prefix: format!("https://github.com/{REPO}/releases/download/"), allow_file: false };
+        let p = Policy { manifest: String::new(), url_prefix: format!("https://github.com/{REPO}/releases/download/"), allow_file: false, allow_http_local: false };
         let good = format!("https://github.com/{REPO}/releases/download/v9.9.9/x.tar.gz");
         let l = parse_manifest(&manifest(&good, &"a".repeat(64)), &platform_key(), &p).unwrap();
         assert!(l.security && l.asset.is_some());
@@ -544,8 +556,17 @@ mod tests {
     }
 
     #[test]
+    fn loopback_only_for_this_machine() {
+        assert_eq!(loopback_origin("http://127.0.0.1:8123/latest.json").as_deref(), Some("http://127.0.0.1:8123/"));
+        assert_eq!(loopback_origin("http://localhost:9/x").as_deref(), Some("http://localhost:9/"));
+        assert!(loopback_origin("http://127.0.0.1.evil.com/x").is_none());
+        assert!(loopback_origin("http://example.com/latest.json").is_none());
+        assert!(loopback_origin("https://127.0.0.1/x").is_none());
+    }
+
+    #[test]
     fn rollout_yank_and_cache() {
-        let p = Policy { manifest: String::new(), url_prefix: "https://github.com/".into(), allow_file: false };
+        let p = Policy { manifest: String::new(), url_prefix: "https://github.com/".into(), allow_file: false, allow_http_local: false };
         let l = parse_manifest(r#"{"version":"1.2.0","rollout":25,"yanked":["1.3.0"]}"#, "k", &p).unwrap();
         assert!(l.offered_to("1.0.0", 10) && !l.offered_to("1.0.0", 60)); // inside / outside the 25%
         assert!(l.offered_to("1.3.0", 99)); // pulled version: always told, even outside the rollout
@@ -559,7 +580,7 @@ mod tests {
 
     #[test]
     fn announcements_are_cleaned_and_cached() {
-        let p = Policy { manifest: String::new(), url_prefix: "https://github.com/".into(), allow_file: false };
+        let p = Policy { manifest: String::new(), url_prefix: "https://github.com/".into(), allow_file: false, allow_http_local: false };
         let body = r#"{"version":"1.0.0","announcement":{"id":"a1","level":"warning","message":"hi\u001b[31m there\nok","url":"javascript:x","below":"2.0.0"}}"#;
         let l = parse_manifest(body, &platform_key(), &p).unwrap();
         let a = l.announcement.clone().unwrap();

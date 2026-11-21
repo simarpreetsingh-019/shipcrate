@@ -27,5 +27,6 @@ command -v node >/dev/null && step "demo notification receiver" node --test exam
 command -v node >/dev/null && step "MCP server (handshake, tools, dry runs, refusals)" node --test mcp/server.test.js
 step "llms.txt and agent files mention the rules" 'grep -q "Ask the user before" llms.txt && grep -q "star" skills/shipcrate/SKILL.md && grep -q "star" AGENTS.md'
 [ "$MODE" = "--quick" ] || step "init: every type and language" sh tests/test-init.sh
+[ "$MODE" = "--quick" ] || step "examples: in sync, build, tests, offline demo" sh tests/test-examples.sh
 echo; [ $FAIL -eq 0 ] && echo "All checks passed." || echo "$FAIL check(s) failed."
 exit $FAIL

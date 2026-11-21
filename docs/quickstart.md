@@ -1,5 +1,9 @@
 # Quick start
 
+> **Want to see it first?** After cloning, run `sh ~/.shipcrate/examples/demo.sh`: a 60-second offline demo of a
+> release, the update notice, upgrade, rollback, yank and a refused tampered download. Ready-to-copy projects for
+> Rust, Python, Node and a SwiftUI Mac app are in [examples/](https://github.com/simarpreetsingh-019/shipcrate/tree/main/examples).
+
 ## 1. Get shipcrate
 
 ```sh

@@ -49,12 +49,25 @@ def platform_key():
     return f"{os_}-{arch}"
 
 
+def loopback_origin(url):
+    """'http://127.0.0.1:8000/' for a loopback http URL (demos, local testing), else None. Never the network."""
+    if not url.startswith("http://"):
+        return None
+    host = url[7:].split("/")[0]
+    name = host.rsplit(":", 1)[0] if ":" in host and not host.endswith("]") else host
+    return f"http://{host}/" if name in ("127.0.0.1", "localhost", "[::1]") else None
+
+
 class Policy:
     """Where downloads may come from. The default manifest only allows this project's GitHub releases."""
     def __init__(self, manifest=None, url_prefix=None, allow_file=False):
         env = os.environ.get(MANIFEST_ENV, "")
+        self.local = None
         if manifest is None and env.startswith("https://"):
             manifest, url_prefix = env, "https://"
+        elif manifest is None and loopback_origin(env):
+            manifest, url_prefix = env, loopback_origin(env)
+            self.local = url_prefix
         beta = os.environ.get(CHANNEL_ENV) == "beta"
         self.manifest = manifest or (f"https://github.com/{REPO}/releases/download/channel/beta.json" if beta
                                      else f"https://github.com/{REPO}/releases/latest/download/latest.json")
@@ -62,7 +75,8 @@ class Policy:
         self.allow_file = allow_file  # tests only
 
     def get(self, url, timeout=15):
-        if not (url.startswith("https://") or (self.allow_file and url.startswith("file://"))):
+        if not (url.startswith("https://") or (self.allow_file and url.startswith("file://"))
+                or (self.local and url.startswith(self.local))):
             raise ValueError(f"refusing {url}")
         req = urllib.request.Request(url, headers={"User-Agent": "{{TOKEN}}-update-check"})
         with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 (scheme checked above)

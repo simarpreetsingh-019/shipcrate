@@ -6,6 +6,8 @@
 - Website SEO/AEO: sitemap.xml, schema.org JSON-LD on every page (software, author, articles, breadcrumbs, FAQ), a 10-question FAQ section, `llms-full.txt`, and no duplicate raw .md pages.
 - `tools/preview.sh`: build and serve the site locally with GitHub's own Pages image before pushing.
 - Contributing page now published on the site.
+- `examples/`: ready-to-copy Rust, Python and Node CLIs and a SwiftUI Mac app, each set up with `shipcrate init` and wired with a few marked lines; `examples/demo.sh`, a 60-second offline demo (release → notice → upgrade → rollback → announcement → yank → tampered download refused); `tests/test-examples.sh` keeps them in sync with the templates.
+- Updaters accept a manifest on this machine (`http://127.0.0.1` / `localhost`) for demos and local testing; any other plain-http address is still refused.
 
 ## [0.3.0] - 2026-11-20
 

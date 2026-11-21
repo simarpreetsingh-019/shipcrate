@@ -1,0 +1,1 @@
+--name hello-node --type cli --lang node --repo you/hello-node --tap you/homebrew-hello-node --desc "A tiny Node CLI showing shipcrate releases and updates"

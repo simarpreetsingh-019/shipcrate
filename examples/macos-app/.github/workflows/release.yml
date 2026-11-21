@@ -1,0 +1,118 @@
+# Releases for HelloShip (from shipcrate). Anyone can check a download came from this repository:
+#   gh attestation verify <file> --repo you/HelloShip
+# BUILD_WHERE=ci    (release.conf): a v* tag builds every target in TARGETS on its own runner, then one job
+#                   publishes the release with checksums, latest.json and a build-provenance attestation.
+# BUILD_WHERE=local: release.sh uploads the build; publishing the release attests the uploaded files.
+# Optional repository secrets: RELEASE_WEBHOOK_URL, RELEASE_WEBHOOK_SECRET (see scripts/notify.sh).
+name: Release
+on:
+  push:
+    tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag: { description: "Release tag to attest (e.g. v1.2.0)", required: true }
+permissions:
+  contents: read
+jobs:
+  plan:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      ci: ${{ steps.plan.outputs.ci }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        run: |
+          . ./release.conf; . scripts/lib.sh
+          echo "ci=$([ "$BUILD_WHERE" = ci ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+          m=""; for t in $TARGETS; do m="$m{\"target\":\"$t\",\"runner\":\"$(runner_for "$t")\"},"; done
+          echo "matrix={\"include\":[${m%,}]}" >> "$GITHUB_OUTPUT"
+  gate:
+    needs: plan
+    if: needs.plan.outputs.ci == 'yes'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install lint and audit tools
+        run: sh scripts/ci-tools.sh
+      - name: Quality gate (release mode)
+        run: sh scripts/check.sh --release
+  build:
+    needs: [plan, gate]
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and package ${{ matrix.target }}
+        run: sh scripts/build-release.sh "${{ matrix.target }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist/
+          if-no-files-found: error
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: dist-*
+          merge-multiple: true
+      - name: Verify every checksum before publishing
+        run: cd dist && for f in *.sha256; do sha256sum -c "$f"; done
+      - name: Notes and manifest
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          sh scripts/release-notes.sh "${TAG#v}" > dist/notes.md
+          sh scripts/manifest.sh "${TAG#v}"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          . ./release.conf
+          prerelease=""; case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+          find dist -maxdepth 1 -type f ! -name notes.md -print0 | xargs -0 gh release create "$TAG" --title "$PRODUCT ${TAG#v}" --notes-file dist/notes.md $prerelease
+      - name: Update the beta channel (beta.json)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh scripts/channel.sh dist/latest.json
+      - name: Notify your systems (optional webhook)
+        env:
+          RELEASE_WEBHOOK_URL: ${{ secrets.RELEASE_WEBHOOK_URL }}
+          RELEASE_WEBHOOK_SECRET: ${{ secrets.RELEASE_WEBHOOK_SECRET }}
+        run: sh scripts/notify.sh
+  attest-upload:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download the release files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir dist && rm -f dist/*.sha256 dist/SHA256SUMS
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*

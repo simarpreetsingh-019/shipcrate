@@ -50,6 +50,12 @@ test("rollout, yank, security, beta channel", () => {
   try { assert.match(u.policy().manifest, /\/releases\/download\/channel\/beta\.json$/); } finally { delete process.env["{{ENV}}_CHANNEL"]; }
 });
 
+test("loopback manifest only for this machine", () => {
+  assert.strictEqual(u.loopbackOrigin("http://127.0.0.1:8123/latest.json"), "http://127.0.0.1:8123/");
+  assert.strictEqual(u.loopbackOrigin("http://127.0.0.1.evil.com/x"), null);
+  assert.strictEqual(u.loopbackOrigin("http://example.com/x"), null);
+});
+
 test("no checks in CI", async () => {
   process.env.CI = "1";
   try { assert.strictEqual(u.checksAllowed(), false); assert.strictEqual(await u.check("0.0.1"), null); } finally { delete process.env.CI; }

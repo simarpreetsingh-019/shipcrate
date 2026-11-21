@@ -48,10 +48,18 @@ function platformKey() {
   return `${o}-${a}`;
 }
 
+// "http://127.0.0.1:8000/" for a loopback http URL (demos, local testing), else null. Never the network.
+function loopbackOrigin(url) {
+  const m = /^http:\/\/((127\.0\.0\.1|localhost|\[::1\])(:\d+)?)\//.exec(String(url));
+  return m ? `http://${m[1]}/` : null;
+}
+
 // Where downloads may come from. The default manifest only allows this project's GitHub releases.
 function policy(opts = {}) {
   const env = process.env[MANIFEST_ENV] || "";
   const custom = !opts.manifest && env.startsWith("https://");
+  const local = !opts.manifest && !custom ? loopbackOrigin(env) : null;
+  if (local) return { manifest: env, urlPrefix: local, allowFile: false, local };
   return {
     manifest: opts.manifest || (custom ? env : process.env[CHANNEL_ENV] === "beta"
       ? `https://github.com/${REPO}/releases/download/channel/beta.json`
@@ -63,7 +71,7 @@ function policy(opts = {}) {
 
 async function get(url, p, timeout = 15000) {
   if (url.startsWith("file://") && p.allowFile) return fs.readFileSync(fileURLToPath(url));
-  if (!url.startsWith("https://")) throw new Error(`refusing ${url}`);
+  if (!url.startsWith("https://") && !(p.local && url.startsWith(p.local))) throw new Error(`refusing ${url}`);
   const r = await fetch(url, { headers: { "User-Agent": "{{TOKEN}}-update-check" }, signal: AbortSignal.timeout(timeout) });
   if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
   return Buffer.from(await r.arrayBuffer());
@@ -217,4 +225,4 @@ async function upgradeAt(exe, current, rollback, p) {
   }
 }
 
-module.exports = { isYanked, offeredTo, rolloutBucket, clean, announcement, announcementLine, checksAllowed, isNewer, platformKey, policy, parseManifest, fetchLatest, check, noticeLine, notify, upgrade, upgradeAt };
+module.exports = { loopbackOrigin, isYanked, offeredTo, rolloutBucket, clean, announcement, announcementLine, checksAllowed, isNewer, platformKey, policy, parseManifest, fetchLatest, check, noticeLine, notify, upgrade, upgradeAt };

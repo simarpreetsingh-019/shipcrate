@@ -1,0 +1,1 @@
+--name hello-py --type cli --lang python --repo you/hello-py --tap you/homebrew-hello-py --desc "A tiny Python CLI showing shipcrate releases and updates"

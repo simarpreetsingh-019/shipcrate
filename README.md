@@ -31,6 +31,15 @@ Platforms: [docs/PLATFORMS.md](docs/PLATFORMS.md).
 Message every user without a release: `sh scripts/announce.sh "…"`. Demo push receiver: [examples/notify-receiver](examples/notify-receiver).
 Beta channel, staged rollout (`--rollout 10` → `scripts/rollout.sh 100`) and rollback for everyone (`scripts/yank.sh`): see [Integrating](docs/INTEGRATING.md).
 
+## See it work
+
+```sh
+sh examples/demo.sh     # 60-second offline demo: release → update notice → upgrade → rollback → yank → tamper refused
+```
+
+Ready-to-copy examples: [Rust CLI](examples/rust-cli) · [Python CLI](examples/python-cli) · [Node CLI](examples/node-cli) ·
+[SwiftUI Mac app](examples/macos-app) · [notification server](examples/notify-receiver). See [examples/](examples).
+
 ## What you get
 
 | File | Does |

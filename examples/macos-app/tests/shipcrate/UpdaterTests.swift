@@ -1,0 +1,43 @@
+// Tests for updater/Updater.swift (shipped by shipcrate). Built with swiftc as a small runner; no network.
+import Foundation
+
+var failures = 0
+func expect(_ ok: Bool, _ what: String) { if ok { print("  ✔ \(what)") } else { print("  ✗ \(what)"); failures += 1 } }
+
+expect(Updater.isNewer("1.10.0", than: "1.9.9"), "1.10.0 > 1.9.9")
+expect(!Updater.isNewer("1.0.0", than: "1.0.0"), "same version isn't newer")
+expect(Updater.isNewer("2.0", than: "1.99.99"), "2.0 > 1.99.99")
+
+func manifest(_ url: String, _ sha: String, security: Bool = false) -> Data {
+    let j: [String: Any] = ["version": "9.9.9", "page": "https://github.com/x/y/releases/tag/v9.9.9", "security": security, "notes": "n",
+                            "assets": ["macos": ["name": "x.zip", "url": url, "sha256": sha]]]
+    return try! JSONSerialization.data(withJSONObject: j)
+}
+let good = "https://github.com/x/y/releases/download/v9.9.9/x.zip"
+let r = Updater.parseManifest(manifest(good, String(repeating: "a", count: 64), security: true), current: "1.0.0")
+expect(r != nil && r!.isSecurity, "accepts a newer GitHub release and sees the security flag")
+expect(Updater.parseManifest(manifest(good, String(repeating: "a", count: 64)), current: "9.9.9") == nil, "no update when current")
+expect(Updater.parseManifest(manifest("https://evil.example/x.zip", String(repeating: "a", count: 64)), current: "1.0.0") == nil, "refuses other hosts")
+expect(Updater.parseManifest(manifest("http://github.com/x.zip", String(repeating: "a", count: 64)), current: "1.0.0") == nil, "refuses plain http")
+expect(Updater.parseManifest(manifest(good, "abc"), current: "1.0.0") == nil, "refuses a bad checksum")
+func m2(_ extra: [String: Any]) -> Data {
+    var j: [String: Any] = ["version": "1.2.0", "page": "https://github.com/x/y", "notes": "",
+                            "assets": ["macos": ["name": "x.zip", "url": good, "sha256": String(repeating: "a", count: 64)]]]
+    extra.forEach { j[$0.key] = $0.value }
+    return try! JSONSerialization.data(withJSONObject: j)
+}
+expect(Updater.parseManifest(m2(["rollout": 25]), current: "1.0.0", bucket: 10) != nil, "rollout: inside the 25%")
+expect(Updater.parseManifest(m2(["rollout": 25]), current: "1.0.0", bucket: 60) == nil, "rollout: outside the 25%")
+expect(Updater.parseManifest(m2(["rollout": 0, "security": true]), current: "1.0.0", bucket: 99) != nil, "security ignores rollout")
+let back = Updater.parseManifest(m2(["yanked": ["1.3.0"]]), current: "1.3.0", bucket: 99)
+expect(back != nil && back!.replacesYanked, "yanked version is offered the older good release")
+Updater.channel = "beta"
+expect(Updater.manifestURL.absoluteString.hasSuffix("/releases/download/channel/beta.json"), "beta channel URL")
+Updater.channel = "stable"
+let annJSON: [String: Any] = ["version": "1.0.0", "announcement": ["id": "a1", "level": "warning", "message": "hi\u{1b}[31m", "url": "javascript:x", "below": "2.0.0"]]
+let annData = try! JSONSerialization.data(withJSONObject: annJSON)
+let ann = Announcement.parse(annData, current: "1.5.0")
+expect(ann?.message == "hi[31m", "announcement: control characters stripped")
+expect(ann != nil && ann!.url == nil, "announcement: only https links")
+expect(Announcement.parse(annData, current: "2.0.0") == nil, "announcement: skipped for versions at or above 'below'")
+exit(failures == 0 ? 0 : 1)

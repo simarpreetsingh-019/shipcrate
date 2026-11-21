@@ -1,0 +1,16 @@
+{
+  "name": "hello-node",
+  "version": "1.0.0",
+  "description": "A tiny Node CLI showing shipcrate releases and updates",
+  "license": "MIT",
+  "bin": {
+    "hello-node": "bin/hello-node.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node build.js",
+    "test": "node --test test/"
+  }
+}

@@ -34,6 +34,11 @@ Website: https://simarpreetsingh-019.github.io/shipcrate/
 - Message every user: `sh scripts/announce.sh "text" [--level info|warning|security] [--url https://…] [--below X.Y.Z]`
 - Verify a download: `gh attestation verify FILE --repo OWNER/REPO`
 
+## Examples
+
+Working projects to copy: https://github.com/simarpreetsingh-019/shipcrate/tree/main/examples (rust-cli, python-cli,
+node-cli, macos-app, notify-receiver). Offline end-to-end demo: `sh examples/demo.sh`.
+
 ## MCP server
 
 `claude mcp add shipcrate -- node ~/.shipcrate/mcp/server.js` (or `codex mcp add …`). Tools: shipcrate_docs,

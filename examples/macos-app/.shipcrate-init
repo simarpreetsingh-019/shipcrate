@@ -1,0 +1,1 @@
+--name HelloShip --type app --lang swift --repo you/HelloShip --tap you/homebrew-helloship --bundle-id com.example.helloship --desc "A tiny Mac app showing shipcrate in-app updates"
