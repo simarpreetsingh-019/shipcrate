@@ -139,7 +139,7 @@ h2{font-size:clamp(38px,6vw,64px);line-height:1.04;letter-spacing:-.04em;font-we
 {% include nav.html %}
 
 <header class="hero"><div class="glow"></div><div class="wrap">
-  <div class="eyebrow r"><span class="dot"></span><b>v{{ site.version }}</b> Now with beta, staged rollout and MCP</div>
+  <div class="eyebrow r"><span class="dot"></span><b>v{{ site.version }}</b> Now with signed updates and one shipcrate command</div>
   <h1 class="r">Ship it.<br><span class="grad">Safely. Everywhere.</span></h1>
   <p class="sub r">Release and update tooling for your products, in one command. Checked, signed for provenance and ready for every platform before you even push.</p>
   <div class="cta r">
@@ -241,8 +241,8 @@ h2{font-size:clamp(38px,6vw,64px);line-height:1.04;letter-spacing:-.04em;font-we
   <h2 class="r">Your agent already<br>knows how to ship.</h2>
   <p class="lede r">An MCP server, skills and an llms.txt. Connect your agent with one command; it previews everything and asks you before it publishes.</p>
   <div class="agentcmds r">
-    <div class="cmd"><code><b>claude</b> mcp add shipcrate -- node ~/.shipcrate/mcp/server.js</code><button class="copy" data-copy="claude mcp add shipcrate -- node ~/.shipcrate/mcp/server.js">Copy</button></div>
-    <div class="cmd"><code><b>codex</b> mcp add shipcrate -- node ~/.shipcrate/mcp/server.js</code><button class="copy" data-copy="codex mcp add shipcrate -- node ~/.shipcrate/mcp/server.js">Copy</button></div>
+    <div class="cmd"><code><b>claude</b> mcp add shipcrate -- node ~/.shipcrate/mcp/server.js</code><button class="copy" data-copy="claude mcp add shipcrate -- shipcrate mcp">Copy</button></div>
+    <div class="cmd"><code><b>codex</b> mcp add shipcrate -- node ~/.shipcrate/mcp/server.js</code><button class="copy" data-copy="codex mcp add shipcrate -- shipcrate mcp">Copy</button></div>
   </div>
   <div class="links r" style="margin-top:28px"><a href="agents/">Cursor, VS Code and more →</a><a href="llms.txt">llms.txt →</a></div>
 </div></section>

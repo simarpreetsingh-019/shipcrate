@@ -18,6 +18,7 @@ import hashlib, io, json, os, platform, shutil, sys, tarfile, tempfile, time, ur
 from pathlib import Path
 
 REPO = "you/hello-py"
+PUBLIC_KEY = ""  # shipcrate:public-key  (signed updates: the publisher's Ed25519 key, set by scripts/keygen.sh)
 BINARY = "hello-py"
 OPT_OUT = "HELLO_PY_NO_UPDATE_CHECK"
 MANIFEST_ENV = "HELLO_PY_UPDATE_MANIFEST"
@@ -96,6 +97,90 @@ def _announcement(a):
     ann = {"id": clean(a.get("id"), 64), "level": clean(a.get("level"), 16), "message": clean(a.get("message"), 280),
            "url": clean(url, 300) if url.startswith("https://") else "", "below": clean(a.get("below"), 32)}
     return ann if ann["id"] and ann["message"] else None
+
+
+# ---------- signed updates: Ed25519 verification (RFC 8032), standard library only ----------
+_P = 2 ** 255 - 19
+_L = 2 ** 252 + 27742317777372353535851937790883648493
+_D = -121665 * pow(121666, _P - 2, _P) % _P
+_I = pow(2, (_P - 1) // 4, _P)
+
+
+def _xrecover(y, sign):
+    x2 = (y * y - 1) * pow(_D * y * y + 1, _P - 2, _P) % _P
+    if x2 == 0:
+        return None if sign else 0
+    x = pow(x2, (_P + 3) // 8, _P)
+    if (x * x - x2) % _P:
+        x = x * _I % _P
+    if (x * x - x2) % _P:
+        return None
+    return _P - x if (x & 1) != sign else x
+
+
+def _decode(b):
+    y = int.from_bytes(b, "little") & ((1 << 255) - 1)
+    if len(b) != 32 or y >= _P:
+        return None
+    x = _xrecover(y, b[31] >> 7)
+    return None if x is None else (x, y, 1, x * y % _P)
+
+
+def _add(p, q):
+    a = (p[1] - p[0]) * (q[1] - q[0]) % _P
+    b = (p[1] + p[0]) * (q[1] + q[0]) % _P
+    c = 2 * _D * p[3] * q[3] % _P
+    d = 2 * p[2] * q[2] % _P
+    e, f, g, h = b - a, d - c, d + c, b + a
+    return (e * f % _P, g * h % _P, f * g % _P, e * h % _P)
+
+
+def _mul(s, p):
+    q = (0, 1, 1, 0)
+    while s:
+        if s & 1:
+            q = _add(q, p)
+        p = _add(p, p)
+        s >>= 1
+    return q
+
+
+def _encode(p):
+    zi = pow(p[2], _P - 2, _P)
+    x, y = p[0] * zi % _P, p[1] * zi % _P
+    return (y | ((x & 1) << 255)).to_bytes(32, "little")
+
+
+_B = _decode((4 * pow(5, _P - 2, _P) % _P).to_bytes(32, "little"))
+
+
+def ed25519_verify(public, msg, sig):
+    if len(public) != 32 or len(sig) != 64:
+        return False
+    a, r = _decode(public), _decode(sig[:32])
+    s = int.from_bytes(sig[32:], "little")
+    if a is None or r is None or s >= _L:
+        return False
+    k = int.from_bytes(hashlib.sha512(sig[:32] + public + msg).digest(), "little") % _L
+    return _encode(_mul(s, _B)) == _encode(_add(r, _mul(k, a)))
+
+
+def signature_ok(body, sig_b64, public_b64):
+    import base64, binascii
+    try:
+        return ed25519_verify(base64.b64decode(public_b64), body, base64.b64decode(sig_b64.strip()))
+    except (binascii.Error, ValueError):
+        return False
+
+
+def _manifest_body(policy):
+    """Fetch the manifest and, when signed updates are on, its signature; refuse anything unsigned or tampered."""
+    body = policy.get(policy.manifest)
+    if PUBLIC_KEY:
+        sig = policy.get(policy.manifest + ".sig").decode("ascii", "replace")
+        if not signature_ok(body, sig, PUBLIC_KEY):
+            raise ValueError("the release manifest's signature is invalid")
+    return body
 
 
 def parse_manifest(body, key, policy):
@@ -181,7 +266,7 @@ def rollout_bucket():
 def fetch_latest(policy=None):
     policy = policy or Policy()
     try:
-        return parse_manifest(policy.get(policy.manifest), platform_key(), policy)
+        return parse_manifest(_manifest_body(policy), platform_key(), policy)
     except Exception:
         return None
 
@@ -292,7 +377,9 @@ def upgrade_at(exe, current, rollback, policy):
         os.replace(old, exe)
         return "Rolled back to the previous version."
     try:
-        latest = parse_manifest(policy.get(policy.manifest), platform_key(), policy)
+        latest = parse_manifest(_manifest_body(policy), platform_key(), policy)
+    except ValueError as e:
+        return f"Refused: {e}."
     except Exception:
         return "Couldn't read the release manifest."
     # An explicit upgrade ignores staged rollout; a pulled (yanked) version may move back to an older good one.

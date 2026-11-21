@@ -76,9 +76,10 @@ jobs:
           merge-multiple: true
       - name: Verify every checksum before publishing
         run: cd dist && for f in *.sha256; do sha256sum -c "$f"; done
-      - name: Notes and manifest
+      - name: Notes and manifest (signed if signed updates are on)
         env:
           TAG: ${{ github.ref_name }}
+          SHIPCRATE_SIGNING_KEY: ${{ secrets.SHIPCRATE_SIGNING_KEY }}
         run: |
           sh scripts/release-notes.sh "${TAG#v}" > dist/notes.md
           sh scripts/manifest.sh "${TAG#v}"

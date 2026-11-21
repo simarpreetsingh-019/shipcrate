@@ -53,6 +53,15 @@ final class Updater: ObservableObject {
     static let repo = "you/HelloShip"
     static let bundleID = "com.example.helloship"
     static let asset = "HelloShip.zip"
+    /// Signed updates: the publisher's Ed25519 public key (base64), set by scripts/keygen.sh. Empty = not signed.
+    static let publicKey = "" // shipcrate:public-key
+
+    /// Does `sig` (contents of latest.json.sig) sign `body` with `key`? CryptoKit's Ed25519.
+    static func signatureOK(_ body: Data, sig: String, key: String) -> Bool {
+        guard let k = Data(base64Encoded: key), let s = Data(base64Encoded: sig.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let pub = try? Curve25519.Signing.PublicKey(rawRepresentation: k) else { return false }
+        return pub.isValidSignature(s, for: body)
+    }
     /// The release manifest. Point it at your own server or CDN (same latest.json format) if you mirror releases,
     /// and add that host to `allowedHosts`.
     static var manifestURL: URL {
@@ -122,13 +131,30 @@ final class Updater: ObservableObject {
         return req
     }
 
+    /// Fetch latest.json and, with signed updates on, latest.json.sig. An unsigned or tampered manifest → nil.
+    static func fetchManifest(_ done: @escaping (Data?, Error?) -> Void) {
+        func get(_ url: URL, _ cb: @escaping (Data?, Error?) -> Void) {
+            var req = URLRequest(url: url)
+            req.setValue("helloship-updater", forHTTPHeaderField: "User-Agent")   // generic; no user or machine data
+            req.timeoutInterval = 15
+            URLSession.shared.dataTask(with: req) { d, r, e in
+                cb((r as? HTTPURLResponse).map { (200..<300).contains($0.statusCode) } ?? false ? d : nil, e)
+            }.resume()
+        }
+        get(manifestURL) { body, error in
+            guard let body, !publicKey.isEmpty else { return done(body, error) }
+            get(manifestURL.appendingPathExtension("sig")) { sig, e in
+                let ok = sig.flatMap { String(data: $0, encoding: .utf8) }.map { signatureOK(body, sig: $0, key: publicKey) } ?? false
+                if !ok { NSLog("HelloShip: update manifest signature invalid or missing: ignored") }
+                done(ok ? body : nil, e)
+            }
+        }
+    }
+
     /// Reads latest.json (the release manifest shipcrate publishes with every release) and picks the macOS build.
     func check(userInitiated: Bool, then done: ((Release?) -> Void)? = nil) {
         if userInitiated { status = "Checking for updates…" }
-        var req = URLRequest(url: Self.manifestURL)
-        req.setValue("helloship-updater", forHTTPHeaderField: "User-Agent")   // generic; no user or machine data
-        req.timeoutInterval = 15
-        URLSession.shared.dataTask(with: req) { [weak self] data, _, error in
+        Self.fetchManifest { [weak self] data, error in
             guard let self else { return }
             // A check the user asked for ignores staged rollout; automatic checks respect it.
             let found = data.flatMap { Self.parseManifest($0, current: self.current, bucket: userInitiated ? 0 : Self.rolloutBucket) }
@@ -148,7 +174,7 @@ final class Updater: ObservableObject {
                     if found == nil { DispatchQueue.main.asyncAfter(deadline: .now() + 4) { self.status = nil } }
                 }
             }
-        }.resume()
+        }
     }
 
     /// Parse latest.json; returns a release only if it's newer and its download is from an allowed host.

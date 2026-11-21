@@ -11,26 +11,26 @@ shipcrate works with any coding agent in three ways. Pick one, or use all three.
 Every option follows the same rules. The agent previews first, asks you before it pushes, publishes, yanks, changes
 a rollout or sends an announcement, and never writes tokens into files.
 
-## 1. Get shipcrate (once)
+## 1. Install shipcrate (once)
 
 ```sh
-git clone https://github.com/simarpreetsingh-019/shipcrate ~/.shipcrate
+curl -fsSL https://raw.githubusercontent.com/simarpreetsingh-019/shipcrate/main/install.sh -o install.sh && sh install.sh
 ```
 
-The commands below assume this location. The MCP server needs Node 18 or newer.
+This installs the `shipcrate` command, with its files in `~/.shipcrate`. The MCP server needs Node 18 or newer.
 
 ## 2. Connect your agent
 
 ### Claude Code
 
 ```sh
-claude mcp add shipcrate -- node ~/.shipcrate/mcp/server.js
+claude mcp add shipcrate -- shipcrate mcp
 ```
 
 ### Codex
 
 ```sh
-codex mcp add shipcrate -- node ~/.shipcrate/mcp/server.js
+codex mcp add shipcrate -- shipcrate mcp
 ```
 
 ### Cursor

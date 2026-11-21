@@ -40,6 +40,7 @@ echo "Announcement for everyone on $PRODUCT${BELOW:+ below $BELOW} (level: $LEVE
 echo "  ${MSG:-(clearing the current announcement)}"
 if [ $YES = 0 ]; then printf 'Publish it to latest.json on %s %s? [y/N] ' "$REPO" "$TAG"; read -r ok; case "$ok" in y|Y|yes) ;; *) die "cancelled";; esac; fi
 cp "$TMP/new.json" "$TMP/latest.json"
-gh release upload "$TAG" "$TMP/latest.json" --repo "$REPO" --clobber
+sh scripts/sign.sh "$TMP/latest.json" >/dev/null
+gh release upload "$TAG" "$TMP"/latest.json* --repo "$REPO" --clobber
 echo "✓ published: clients show it once, at their next daily check"
 mkdir -p dist && cp "$TMP/latest.json" dist/latest.json && SHIPCRATE_EVENT=announcement sh scripts/notify.sh || true

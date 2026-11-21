@@ -30,7 +30,7 @@ done
 if has cargo && has python3 && has curl; then
   echo "• demo.sh"
   OUT=$(NO_PAUSE=1 sh examples/demo.sh 2>&1)
-  for want in "Upgraded hello-ship 1.0.0 → 1.1.0" "Rolled back" "Upgraded hello-ship 1.1.0 → 1.0.0" "checksum mismatch"; do
+  for want in "Upgraded hello-ship 1.0.0 → 1.1.0" "Rolled back" "Upgraded hello-ship 1.1.0 → 1.0.0" "checksum mismatch" "signature is invalid"; do
     printf '%s' "$OUT" | grep -q "$want" && ok "demo: $want" || { bad "demo missing: $want"; printf '%s\n' "$OUT" | tail -15 | sed 's/^/      /'; }
   done
 fi

@@ -11,17 +11,27 @@ that ship into your project. Plain POSIX shell plus `git` and `gh`; nothing to i
 It's extracted from the release system of [Thermo](https://github.com/simarpreetsingh-019/Thermo), a macOS notch
 system monitor, and made generic. Works by hand, and by AI coding agents through the included skills.
 
+## Install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/simarpreetsingh-019/shipcrate/main/install.sh -o install.sh && sh install.sh
+```
+
 ## Quick start
 
 ```sh
-git clone https://github.com/simarpreetsingh-019/shipcrate ~/.shipcrate
 cd your-project
-~/.shipcrate/bin/shipcrate init --dry-run      # see what it would write
-~/.shipcrate/bin/shipcrate init                # asks: name, app/cli, language, GitHub repo, tap
-sh scripts/install-hooks.sh && sh scripts/check.sh
-sh scripts/release.sh 0.1.0 --dry-run          # build + show the release notes, publish nothing
-sh scripts/release.sh 0.1.0                    # asks, then tags, pushes, releases, bumps the tap
+shipcrate init --dry-run          # see what it would write
+shipcrate init                    # asks: name, app/cli, language, GitHub repo, tap
+shipcrate keygen                  # signed updates (recommended)
+shipcrate doctor                  # checks the setup, explains fixes
+shipcrate changelog --write       # CHANGELOG section from your commits
+shipcrate release auto --dry-run  # build + show the release notes, publish nothing
+shipcrate release auto            # asks, then tags, pushes, releases, bumps the tap
 ```
+
+All commands: `shipcrate help`. Each one calls your project's own `scripts/`, so plain `sh scripts/release.sh`
+works too (CI and agents use that).
 
 Non-interactive: `shipcrate init DIR --yes --name N --type app|cli --lang rust|swift|python|node --repo OWNER/REPO [--targets "macos-arm64 linux-x64 windows-x64"] [--tap OWNER/homebrew-N|none] [--desc TEXT] [--bundle-id ID]`.
 
@@ -89,7 +99,7 @@ commands, and route `msh upgrade [--rollback]` to `update::upgrade`.
 
 ## For AI agents
 
-- **MCP server:** `claude mcp add shipcrate -- node ~/.shipcrate/mcp/server.js` (or `codex mcp add …`). It has tools to set up, gate, preview, check status and verify. There are no publishing tools: your agent runs those scripts where you can see and approve them. Cursor and VS Code one-click buttons: [AI agents](https://simarpreetsingh-019.github.io/shipcrate/agents/).
+- **MCP server:** `claude mcp add shipcrate -- shipcrate mcp` (or `codex mcp add …`). It has tools to set up, gate, preview, check status and verify. There are no publishing tools: your agent runs those scripts where you can see and approve them. Cursor and VS Code one-click buttons: [AI agents](https://simarpreetsingh-019.github.io/shipcrate/agents/).
 - **llms.txt:** [llms.txt](llms.txt) is a one-page brief any agent can read.
 
 - **Claude Code / Codex:** `sh skills/install.sh` copies `skills/shipcrate/SKILL.md` to `~/.claude/skills/shipcrate`

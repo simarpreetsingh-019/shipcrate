@@ -42,7 +42,8 @@ add_yanked "$M" "$BAD"
 manifest_set "$M" rollout ""
 manifest_set "$M" announcement "$(printf '{ "id": "yank-%s", "level": "warning", "message": %s, "url": "", "below": "" }' "$BAD" \
   "$(printf '%s' "$PRODUCT $BAD was pulled${REASON:+: $REASON}. Run upgrade to go back to $GOOD." | json_string)")"
-gh release upload "v$GOOD" "$M" --repo "$REPO" --clobber
+sh scripts/sign.sh "$M" >/dev/null
+gh release upload "v$GOOD" "$M"* --repo "$REPO" --clobber
 gh release edit "v$GOOD" --repo "$REPO" --latest >/dev/null
 OLD=$(gh release view "v$BAD" --repo "$REPO" --json body -q .body)
 printf '> ⚠️ **Yanked**: this release was pulled%s. Use %s instead.\n\n%s\n' "${REASON:+ ($REASON)}" "v$GOOD" "$OLD" > "$W/notes.md"

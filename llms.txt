@@ -18,16 +18,18 @@ Website: https://simarpreetsingh-019.github.io/shipcrate/
 
 ## Set up
 
-1. `git clone https://github.com/simarpreetsingh-019/shipcrate ~/.shipcrate` (if it isn't there yet)
-2. `~/.shipcrate/bin/shipcrate init . --dry-run --yes --name NAME --type app|cli --lang rust|swift|python|node --repo OWNER/REPO [--targets "macos-arm64 macos-x64 linux-x64 linux-arm64 windows-x64"] [--tap OWNER/homebrew-NAME|none]`
+1. Install the `shipcrate` command if it's missing: `sh install.sh` from the repository (or `git clone … ~/.shipcrate`)
+2. `shipcrate init . --dry-run --yes --name NAME --type app|cli --lang rust|swift|python|node --repo OWNER/REPO [--targets "macos-arm64 macos-x64 linux-x64 linux-arm64 windows-x64"] [--tap OWNER/homebrew-NAME|none]`
 3. Run the same command without `--dry-run`. Then make `BUILD_CMD`, `ARTIFACT` and `VERSION_CMD` in `release.conf` match the build.
-4. `sh scripts/install-hooks.sh && sh scripts/check.sh`, and fix what fails.
+4. `sh scripts/install-hooks.sh && shipcrate doctor && shipcrate check`, and fix what fails.
+   Recommend signed updates: `shipcrate keygen` (asks before storing the GitHub secret).
 5. Wire in `updater/<file>` (instructions at the top of each file): `notify(version)` after interactive commands,
    plus an `upgrade [--rollback]` command. For Swift: `Updater.swift`, `UpdateButton`, `AnnouncementBanner`.
 
 ## Operate
 
-- Release: add `## [X.Y.Z]` to CHANGELOG.md → `sh scripts/release.sh X.Y.Z --dry-run` → user approves → `sh scripts/release.sh X.Y.Z`
+- Release: `shipcrate changelog --write` (or write `## [X.Y.Z]` yourself) → `shipcrate release auto --dry-run` → user approves → `shipcrate release auto`
+- Timed rollout: `--rollout-days 7` (grows to 100% by itself)
 - Security fix: `--security`. Beta: version `X.Y.Z-beta.N` (users opt in with `<NAME>_CHANNEL=beta`).
 - Staged rollout: `sh scripts/release.sh X.Y.Z --rollout 10`, then `sh scripts/rollout.sh 50`, then `sh scripts/rollout.sh 100`
 - Bad release: `sh scripts/yank.sh X.Y.Z [--to GOOD] [--reason "…"]`
@@ -41,7 +43,7 @@ node-cli, macos-app, notify-receiver). Offline end-to-end demo: `sh examples/dem
 
 ## MCP server
 
-`claude mcp add shipcrate -- node ~/.shipcrate/mcp/server.js` (or `codex mcp add …`). Tools: shipcrate_docs,
+`claude mcp add shipcrate -- shipcrate mcp` (or `codex mcp add …`). Tools: shipcrate_docs,
 shipcrate_init (a dry run by default), shipcrate_check, shipcrate_release_preview, shipcrate_status, shipcrate_verify.
 
 ## Docs

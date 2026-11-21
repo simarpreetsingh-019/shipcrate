@@ -21,6 +21,7 @@ const { execFileSync } = require("node:child_process");
 const { fileURLToPath } = require("node:url");
 
 const REPO = "{{REPO}}";
+const PUBLIC_KEY = ""; // shipcrate:public-key  (signed updates: the publisher's Ed25519 key, set by scripts/keygen.sh)
 const BINARY = "{{BINARY}}";
 const OPT_OUT = "{{ENV}}_NO_UPDATE_CHECK";
 const MANIFEST_ENV = "{{ENV}}_UPDATE_MANIFEST";
@@ -88,6 +89,24 @@ function parseAnnouncement(a) {
   return ann.id && ann.message ? ann : null;
 }
 
+// Signed updates: Ed25519 (Node's built-in crypto).
+function signatureOk(body, sigB64, publicB64) {
+  try {
+    const raw = Buffer.from(publicB64, "base64");
+    if (raw.length !== 32) return false;
+    const key = crypto.createPublicKey({ key: Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), raw]), format: "der", type: "spki" });
+    return crypto.verify(null, Buffer.from(body), key, Buffer.from(String(sigB64).trim(), "base64"));
+  } catch { return false; }
+}
+
+// Fetch the manifest and, when signed updates are on, its signature; refuse anything unsigned or tampered.
+async function manifestBody(p) {
+  const body = await get(p.manifest, p);
+  if (PUBLIC_KEY && !signatureOk(body, (await get(p.manifest + ".sig", p)).toString(), PUBLIC_KEY))
+    throw new Error("the release manifest's signature is invalid");
+  return body;
+}
+
 function parseManifest(body, key, p) {
   const j = JSON.parse(body);
   let asset = null;
@@ -135,7 +154,7 @@ function rolloutBucket() {
 }
 
 async function fetchLatest(p = policy()) {
-  try { return parseManifest(await get(p.manifest, p), platformKey(), p); } catch { return null; }
+  try { return parseManifest(await manifestBody(p), platformKey(), p); } catch { return null; }
 }
 
 const cacheFile = () => path.join(process.env.XDG_CACHE_HOME || process.env.LOCALAPPDATA || path.join(os.homedir(), ".cache"), "{{TOKEN}}", "update-check.json");
@@ -208,7 +227,8 @@ async function upgradeAt(exe, current, rollback, p) {
     return "Rolled back to the previous version.";
   }
   let latest;
-  try { latest = parseManifest(await get(p.manifest, p), platformKey(), p); } catch { return "Couldn't read the release manifest."; }
+  try { latest = parseManifest(await manifestBody(p), platformKey(), p); }
+  catch (e) { return /signature/.test(e.message) ? `Refused: ${e.message}.` : "Couldn't read the release manifest."; }
   // An explicit upgrade ignores staged rollout; a pulled (yanked) version may move back to an older good one.
   if (!isNewer(latest.version, current) && !(isYanked(latest, current) && latest.version !== String(current).replace(/^v/, "")))
     return `${BINARY} ${current} is the latest version.`;
@@ -235,4 +255,4 @@ async function upgradeAt(exe, current, rollback, p) {
   }
 }
 
-module.exports = { effectiveRollout, loopbackOrigin, isYanked, offeredTo, rolloutBucket, clean, announcement, announcementLine, checksAllowed, isNewer, platformKey, policy, parseManifest, fetchLatest, check, noticeLine, notify, upgrade, upgradeAt };
+module.exports = { signatureOk, effectiveRollout, loopbackOrigin, isYanked, offeredTo, rolloutBucket, clean, announcement, announcementLine, checksAllowed, isNewer, platformKey, policy, parseManifest, fetchLatest, check, noticeLine, notify, upgrade, upgradeAt };

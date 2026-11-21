@@ -106,6 +106,27 @@ Each copy picks a random number from 0 to 99 once and keeps it on the user's mac
 number is below the percentage. Nothing is sent or tracked. Security releases (`--security`) ignore the percentage,
 and a user who runs `upgrade` themselves always gets the newest version.
 
+**Timed rollout.** `shipcrate release 1.4.0 --rollout-days 7` (or `shipcrate rollout 0 --days 7`) grows the share
+from 0% to 100% over seven days, on each client, from the publish date. You don't run any follow-up commands, and
+`shipcrate rollout 100` ends it early.
+
+## Signed updates
+
+`shipcrate keygen` turns them on: every `latest.json` gets a `latest.json.sig` (Ed25519). The Swift, Rust, Python
+and Node updaters check it with the built-in public key before trusting any version or checksum, so even someone
+who could change files on GitHub or your mirror can't push an update. Verification uses no extra dependencies
+(CryptoKit, Node crypto, and small RFC 8032 verifiers in Rust and Python), and it costs nothing.
+
+Keep the private key safe (a password manager is fine). It lives in `~/.config/shipcrate/` and the
+`SHIPCRATE_SIGNING_KEY` repository secret, never in the repository.
+
+## Version and changelog from commits
+
+`shipcrate changelog` reads your commits since the last release and suggests the next version: `feat:` gives a
+minor, `fix:` a patch, and `feat!:` or `BREAKING CHANGE:` a major (a minor before 1.0). It groups them under
+Added, Fixed, Changed and Security. `--write` adds the section to CHANGELOG.md, and `shipcrate release auto`
+uses the suggested version.
+
 ## Rolling back a bad release
 
 | Who | Command | What happens |

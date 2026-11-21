@@ -1,13 +1,17 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.0] - 2026-11-22
 
 ### Added
-- Website SEO/AEO: sitemap.xml, schema.org JSON-LD on every page (software, author, articles, breadcrumbs, FAQ), a 10-question FAQ section, `llms-full.txt`, and no duplicate raw .md pages.
-- `tools/preview.sh`: build and serve the site locally with GitHub's own Pages image before pushing.
-- Contributing page now published on the site.
-- `examples/`: ready-to-copy Rust, Python and Node CLIs and a SwiftUI Mac app, each set up with `shipcrate init` and wired with a few marked lines; `examples/demo.sh`, a 60-second offline demo (release → notice → upgrade → rollback → announcement → yank → tampered download refused); `tests/test-examples.sh` keeps them in sync with the templates.
-- Updaters accept a manifest on this machine (`http://127.0.0.1` / `localhost`) for demos and local testing; any other plain-http address is still refused.
+- **Signed updates:** `shipcrate keygen` makes an Ed25519 key; every `latest.json` is signed (`latest.json.sig`), and the Swift, Rust, Python and Node updaters verify it before trusting anything. No dependencies, no cost (CryptoKit, Node crypto, RFC 8032 verifiers in Rust and Python, tested with the RFC vectors).
+- **One `shipcrate` command:** `check`, `changelog`, `release`, `rollout`, `yank`, `announce`, `status`, `doctor`, `keygen`, `demo`, `mcp`, `self-update`; `install.sh` installer and a Homebrew formula.
+- **Timed rollout:** `--rollout-days N` grows an update to 100% over N days on each client.
+- **Version and changelog from commits:** `shipcrate changelog` (Conventional Commits) and `shipcrate release auto`.
+- **SBOM and Sigstore:** every release gets an SPDX SBOM, an SBOM attestation and keyless Sigstore signatures (free).
+- **Examples:** Rust, Python and Node CLIs and a SwiftUI Mac app, plus `examples/demo.sh`, a 60-second offline demo (now with signed updates and a forged-manifest refusal) and `tests/test-examples.sh`.
+- **Website:** SEO and AEO (sitemap, JSON-LD, FAQ, `llms-full.txt`), the Contributing page, and `tools/preview.sh` for local previews.
+- ROADMAP.md, with learnings from GoReleaser, dist, Sparkle, Velopack, Tauri and release-please.
+- Updaters accept a manifest on this machine (`http://127.0.0.1`/`localhost`) for demos and local testing.
 
 ## [0.3.0] - 2026-11-20
 

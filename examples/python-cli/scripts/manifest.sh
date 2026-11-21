@@ -28,4 +28,5 @@ BASE="https://github.com/$REPO/releases/download/v$V"
 } > dist/latest.json
 [ -n "$sep" ] || { echo "✗ no dist/<asset>.sha256 files for TARGETS='$TARGETS'"; exit 1; }
 (cd dist && cat ./*.sha256 > SHA256SUMS)
+sh scripts/sign.sh dist/latest.json >/dev/null   # signed updates (if PUBLIC_KEY is set): dist/latest.json.sig
 echo "✓ dist/latest.json, dist/SHA256SUMS"

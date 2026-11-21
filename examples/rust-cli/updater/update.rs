@@ -23,6 +23,8 @@ use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const REPO: &str = "you/hello-ship";
+/// Signed updates: the publisher's Ed25519 public key (base64), set by `scripts/keygen.sh`. Empty = not signed.
+pub const PUBLIC_KEY: &str = ""; // shipcrate:public-key
 pub const BINARY: &str = "hello-ship";
 const OPT_OUT: &str = "HELLO_SHIP_NO_UPDATE_CHECK";
 const MANIFEST_ENV: &str = "HELLO_SHIP_UPDATE_MANIFEST";
@@ -236,6 +238,279 @@ impl Parser<'_> {
     }
 }
 
+// ---------- signed updates: Ed25519 verification (RFC 8032), standard library only ----------
+pub mod ed25519 {
+    type Fe = [u64; 4];
+    const P: Fe = [0xffff_ffff_ffff_ffed, u64::MAX, u64::MAX, 0x7fff_ffff_ffff_ffff];
+    const L: Fe = [0x5812_631a_5cf5_d3ed, 0x14de_f9de_a2f7_9cd6, 0, 0x1000_0000_0000_0000];
+
+    fn ge(a: &Fe, b: &Fe) -> bool {
+        for i in (0..4).rev() {
+            if a[i] != b[i] {
+                return a[i] > b[i];
+            }
+        }
+        true
+    }
+    fn sub_raw(a: &Fe, b: &Fe) -> Fe {
+        let (mut r, mut borrow) = ([0u64; 4], 0u64);
+        for i in 0..4 {
+            let (x, b1) = a[i].overflowing_sub(b[i]);
+            let (y, b2) = x.overflowing_sub(borrow);
+            r[i] = y;
+            borrow = (b1 || b2) as u64;
+        }
+        r
+    }
+    fn add_raw(a: &Fe, b: &Fe) -> (Fe, u64) {
+        let (mut r, mut c) = ([0u64; 4], 0u128);
+        for i in 0..4 {
+            c += a[i] as u128 + b[i] as u128;
+            r[i] = c as u64;
+            c >>= 64;
+        }
+        (r, c as u64)
+    }
+    fn canon(mut a: Fe) -> Fe {
+        while ge(&a, &P) {
+            a = sub_raw(&a, &P);
+        }
+        a
+    }
+    /// Reduce an 8-limb product mod p, using 2^256 ≡ 38.
+    fn reduce(t: [u64; 8]) -> Fe {
+        let mut r = [0u64; 4];
+        let mut c: u128 = 0;
+        for i in 0..4 {
+            c += t[i] as u128 + 38u128 * t[i + 4] as u128;
+            r[i] = c as u64;
+            c >>= 64;
+        }
+        let mut top = c as u64;
+        while top > 0 {
+            let mut c: u128 = 38u128 * top as u128;
+            for limb in r.iter_mut() {
+                c += *limb as u128;
+                *limb = c as u64;
+                c >>= 64;
+            }
+            top = c as u64;
+        }
+        canon(r)
+    }
+    fn mul(a: &Fe, b: &Fe) -> Fe {
+        let mut t = [0u64; 8];
+        for i in 0..4 {
+            let mut c: u128 = 0;
+            for j in 0..4 {
+                c += t[i + j] as u128 + a[i] as u128 * b[j] as u128;
+                t[i + j] = c as u64;
+                c >>= 64;
+            }
+            t[i + 4] = c as u64;
+        }
+        reduce(t)
+    }
+    fn add(a: &Fe, b: &Fe) -> Fe {
+        let (r, c) = add_raw(a, b);
+        reduce([r[0], r[1], r[2], r[3], c, 0, 0, 0])
+    }
+    fn sub(a: &Fe, b: &Fe) -> Fe {
+        if ge(a, b) { sub_raw(a, b) } else { sub_raw(&add_raw(a, &P).0, b) }
+    }
+    fn pow(a: &Fe, e: &Fe) -> Fe {
+        let mut r: Fe = [1, 0, 0, 0];
+        for i in (0..256).rev() {
+            r = mul(&r, &r);
+            if (e[i / 64] >> (i % 64)) & 1 == 1 {
+                r = mul(&r, a);
+            }
+        }
+        r
+    }
+    fn inv(a: &Fe) -> Fe {
+        pow(a, &[0xffff_ffff_ffff_ffeb, u64::MAX, u64::MAX, 0x7fff_ffff_ffff_ffff])
+    }
+    fn small(n: u64) -> Fe {
+        [n, 0, 0, 0]
+    }
+    fn d() -> Fe {
+        mul(&sub(&[0; 4], &small(121_665)), &inv(&small(121_666)))
+    }
+    fn sqrt_m1() -> Fe {
+        pow(&small(2), &[0xffff_ffff_ffff_fffb, u64::MAX, u64::MAX, 0x1fff_ffff_ffff_ffff])
+    }
+
+    #[derive(Clone, Copy)]
+    struct Pt { x: Fe, y: Fe, z: Fe, t: Fe }
+
+    fn padd(p: &Pt, q: &Pt, d2: &Fe) -> Pt {
+        let a = mul(&sub(&p.y, &p.x), &sub(&q.y, &q.x));
+        let b = mul(&add(&p.y, &p.x), &add(&q.y, &q.x));
+        let c = mul(&mul(&p.t, d2), &q.t);
+        let dd = mul(&add(&p.z, &p.z), &q.z);
+        let (e, f, g, h) = (sub(&b, &a), sub(&dd, &c), add(&dd, &c), add(&b, &a));
+        Pt { x: mul(&e, &f), y: mul(&g, &h), t: mul(&e, &h), z: mul(&f, &g) }
+    }
+    fn smul(s: &Fe, p: &Pt, d2: &Fe) -> Pt {
+        let mut q = Pt { x: [0; 4], y: small(1), z: small(1), t: [0; 4] };
+        for i in (0..256).rev() {
+            q = padd(&q, &q, d2);
+            if (s[i / 64] >> (i % 64)) & 1 == 1 {
+                q = padd(&q, p, d2);
+            }
+        }
+        q
+    }
+    fn le(b: &[u8]) -> Fe {
+        let mut r = [0u64; 4];
+        for (i, byte) in b.iter().take(32).enumerate() {
+            r[i / 8] |= (*byte as u64) << (8 * (i % 8));
+        }
+        r
+    }
+    fn encode(p: &Pt) -> [u8; 32] {
+        let zi = inv(&p.z);
+        let (x, y) = (mul(&p.x, &zi), mul(&p.y, &zi));
+        let mut out = [0u8; 32];
+        for (i, o) in out.iter_mut().enumerate() {
+            *o = (y[i / 8] >> (8 * (i % 8))) as u8;
+        }
+        out[31] |= ((x[0] & 1) as u8) << 7;
+        out
+    }
+    fn decode(b: &[u8]) -> Option<Pt> {
+        if b.len() != 32 {
+            return None;
+        }
+        let sign = b[31] >> 7;
+        let mut yb = [0u8; 32];
+        yb.copy_from_slice(b);
+        yb[31] &= 0x7f;
+        let y = le(&yb);
+        if ge(&y, &P) {
+            return None;
+        }
+        let y2 = mul(&y, &y);
+        let x2 = mul(&sub(&y2, &small(1)), &inv(&add(&mul(&d(), &y2), &small(1))));
+        let mut x = pow(&x2, &[0xffff_ffff_ffff_fffe, u64::MAX, u64::MAX, 0x0fff_ffff_ffff_ffff]);
+        if mul(&x, &x) != x2 {
+            x = mul(&x, &sqrt_m1());
+        }
+        if mul(&x, &x) != x2 {
+            return None;
+        }
+        if x == [0; 4] && sign == 1 {
+            return None;
+        }
+        if (x[0] & 1) as u8 != sign {
+            x = sub(&[0; 4], &x);
+        }
+        Some(Pt { x, y, z: small(1), t: mul(&x, &y) })
+    }
+    /// 512-bit little-endian number mod L.
+    fn mod_l(h: &[u8; 64]) -> Fe {
+        let mut r: Fe = [0; 4];
+        for i in (0..512).rev() {
+            let bit = ((h[i / 8] >> (i % 8)) & 1) as u64;
+            let mut c = bit;
+            for limb in r.iter_mut() {
+                let n = (*limb >> 63) & 1;
+                *limb = (*limb << 1) | c;
+                c = n;
+            }
+            if ge(&r, &L) {
+                r = sub_raw(&r, &L);
+            }
+        }
+        r
+    }
+
+    /// Verify an Ed25519 signature. `sha512` hashes bytes (std has no SHA-512, so the caller supplies one).
+    pub fn verify(public: &[u8], msg: &[u8], sig: &[u8], sha512: &dyn Fn(&[u8]) -> Option<[u8; 64]>) -> bool {
+        if public.len() != 32 || sig.len() != 64 {
+            return false;
+        }
+        let (Some(a), Some(r)) = (decode(public), decode(&sig[..32])) else { return false };
+        let s = le(&sig[32..]);
+        if ge(&s, &L) {
+            return false;
+        }
+        let mut buf = Vec::with_capacity(64 + msg.len());
+        buf.extend_from_slice(&sig[..32]);
+        buf.extend_from_slice(public);
+        buf.extend_from_slice(msg);
+        let Some(h) = sha512(&buf) else { return false };
+        let k = mod_l(&h);
+        let d2 = add(&d(), &d());
+        let bx = decode(&{
+            let mut b = [0x66u8; 32];
+            b[0] = 0x58;
+            b
+        });
+        let Some(base) = bx else { return false };
+        encode(&smul(&s, &base, &d2)) == encode(&padd(&r, &smul(&k, &a, &d2), &d2))
+    }
+}
+
+/// Standard base64 decoding (no dependency). None on bad input.
+pub fn base64_decode(s: &str) -> Option<Vec<u8>> {
+    let val = |c: u8| -> Option<u32> {
+        Some(match c { b'A'..=b'Z' => c - b'A', b'a'..=b'z' => c - b'a' + 26, b'0'..=b'9' => c - b'0' + 52, b'+' => 62, b'/' => 63, _ => return None } as u32)
+    };
+    let bytes: Vec<u8> = s.bytes().filter(|c| !c.is_ascii_whitespace()).collect();
+    let trimmed = bytes.iter().rposition(|&c| c != b'=').map(|i| &bytes[..=i]).unwrap_or(&[]);
+    let (mut out, mut acc, mut bits) = (Vec::new(), 0u32, 0);
+    for &c in trimmed {
+        acc = (acc << 6) | val(c)?;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+            acc &= (1 << bits) - 1;
+        }
+    }
+    Some(out)
+}
+
+/// SHA-512 via the system tools (shasum, sha512sum, or certutil on Windows).
+pub fn sha512(data: &[u8]) -> Option<[u8; 64]> {
+    let path = env::temp_dir().join(format!("{BINARY}-sig-{}-{}", std::process::id(), now()));
+    fs::write(&path, data).ok()?;
+    let run = |cmd: &str, pre: &[&str], post: &[&str]| {
+        Command::new(cmd).args(pre).arg(&path).args(post).output().ok().filter(|o| o.status.success()).and_then(|o| String::from_utf8(o.stdout).ok())
+    };
+    let hex = run("shasum", &["-a", "512"], &[]).or_else(|| run("sha512sum", &[], &[])).and_then(|s| s.split_whitespace().next().map(String::from))
+        .or_else(|| run("certutil", &["-hashfile"], &["SHA512"]).and_then(|s| s.lines().nth(1).map(|l| l.replace(' ', ""))));
+    let _ = fs::remove_file(&path);
+    let hex = hex?;
+    let mut out = [0u8; 64];
+    for (i, o) in out.iter_mut().enumerate() {
+        *o = u8::from_str_radix(hex.get(2 * i..2 * i + 2)?, 16).ok()?;
+    }
+    Some(out)
+}
+
+/// Does `sig_b64` (contents of latest.json.sig) sign `body` with `public_b64`?
+pub fn signature_ok(body: &[u8], sig_b64: &str, public_b64: &str) -> bool {
+    match (base64_decode(public_b64), base64_decode(sig_b64.trim())) {
+        (Some(k), Some(s)) => ed25519::verify(&k, body, &s, &sha512),
+        _ => false,
+    }
+}
+
+/// Fetch the manifest and, when signed updates are on, its signature; refuse anything unsigned or tampered.
+fn fetch_manifest_body(p: &Policy) -> Result<String, String> {
+    let body = curl(p, &[&p.manifest]).ok_or("couldn't read the release manifest")?;
+    if !PUBLIC_KEY.is_empty() {
+        let sig = curl(p, &[&format!("{}.sig", p.manifest)]).ok_or("the release manifest isn't signed: refused")?;
+        if !signature_ok(&body, &String::from_utf8_lossy(&sig), PUBLIC_KEY) {
+            return Err("the release manifest's signature is invalid: refused".into());
+        }
+    }
+    String::from_utf8(body).map_err(|_| "bad manifest".to_string())
+}
+
 // ---------- policy ----------
 fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
@@ -362,7 +637,7 @@ pub fn parse_manifest(body: &str, key: &str, p: &Policy) -> Option<Latest> {
 }
 
 pub fn fetch_latest(p: &Policy) -> Option<Latest> {
-    let body = String::from_utf8(curl(p, &[&p.manifest])?).ok()?;
+    let body = fetch_manifest_body(p).ok()?;
     parse_manifest(&body, &platform_key(), p)
 }
 
@@ -507,7 +782,7 @@ pub fn upgrade_at(exe: &Path, current: &str, rollback: bool, p: &Policy) -> Resu
         fs::rename(&old, exe).map_err(|e| format!("rollback failed: {e}"))?;
         return Ok("Rolled back to the previous version.".into());
     }
-    let body = String::from_utf8(curl(p, &[&p.manifest]).ok_or("couldn't read the release manifest")?).map_err(|_| "bad manifest")?;
+    let body = fetch_manifest_body(p)?;
     let latest = parse_manifest(&body, &platform_key(), p).ok_or("bad manifest")?;
     // An explicit upgrade ignores staged rollout; a pulled (yanked) version may move back to an older good one.
     if !is_newer(&latest.version, current) && !(latest.is_yanked(current) && latest.version != current.trim_start_matches('v')) {
@@ -588,6 +863,29 @@ mod tests {
         assert!(parse_manifest(&manifest("https://evil.example/x.tar.gz", &"a".repeat(64)), &platform_key(), &p).unwrap().asset.is_none());
         assert!(parse_manifest(&manifest(&good, "abc"), &platform_key(), &p).unwrap().asset.is_none());
         assert!(parse_manifest(&manifest("file:///tmp/x.tar.gz", &"a".repeat(64)), &platform_key(), &p).unwrap().asset.is_none());
+    }
+
+    fn hex(s: &str) -> Vec<u8> {
+        (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect()
+    }
+
+    #[test]
+    fn ed25519_rfc8032_vectors_and_tampering() {
+        // RFC 8032 section 7.1, tests 1 and 2
+        let pk1 = hex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a");
+        let sig1 = hex("e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b");
+        assert!(ed25519::verify(&pk1, b"", &sig1, &sha512));
+        let pk2 = hex("3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c");
+        let sig2 = hex("92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00");
+        assert!(ed25519::verify(&pk2, &[0x72], &sig2, &sha512));
+        assert!(!ed25519::verify(&pk2, &[0x73], &sig2, &sha512)); // other message
+        assert!(!ed25519::verify(&pk1, &[0x72], &sig2, &sha512)); // other key
+        // A signature made by Node/OpenSSL (what scripts/sign.sh produces), base64 like latest.json.sig
+        let (pk, msg, sig) = ("MsAhEo6wDmN12G+ny87AFJjVvz611LJ3tvW4QaLBGyo=", r#"{"version":"9.9.9","assets":{}}"#,
+            "lQbyJHY1BoYikkMnQdtFJZijL+YVBpR9Mv0X7vvoOjdip0r88LEPjqV2V8S1MYjn2tvlca+mn5FoEh0zosxCCg==");
+        assert!(signature_ok(msg.as_bytes(), sig, pk));
+        assert!(!signature_ok(msg.replace("9.9.9", "9.9.8").as_bytes(), sig, pk));
+        assert!(!signature_ok(msg.as_bytes(), "AAAA", pk));
     }
 
     #[test]

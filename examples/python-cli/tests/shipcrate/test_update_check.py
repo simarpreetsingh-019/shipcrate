@@ -73,6 +73,23 @@ class Announcements(unittest.TestCase):
                 del os.environ["XDG_CACHE_HOME"]
 
 
+class Signatures(unittest.TestCase):
+    def test_rfc8032_and_tampering(self):
+        h = bytes.fromhex
+        pk1 = h("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a")
+        sig1 = h("e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b")
+        self.assertTrue(u.ed25519_verify(pk1, b"", sig1))
+        pk2 = h("3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c")
+        sig2 = h("92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00")
+        self.assertTrue(u.ed25519_verify(pk2, b"\x72", sig2))
+        self.assertFalse(u.ed25519_verify(pk2, b"\x73", sig2))
+        pk, msg, sig = ("MsAhEo6wDmN12G+ny87AFJjVvz611LJ3tvW4QaLBGyo=", b'{"version":"9.9.9","assets":{}}',
+                        "lQbyJHY1BoYikkMnQdtFJZijL+YVBpR9Mv0X7vvoOjdip0r88LEPjqV2V8S1MYjn2tvlca+mn5FoEh0zosxCCg==")
+        self.assertTrue(u.signature_ok(msg, sig, pk))
+        self.assertFalse(u.signature_ok(msg.replace(b"9.9.9", b"9.9.8"), sig, pk))
+        self.assertFalse(u.signature_ok(msg, "AAAA", pk))
+
+
 class Loopback(unittest.TestCase):
     def test_only_this_machine(self):
         self.assertEqual(u.loopback_origin("http://127.0.0.1:8123/latest.json"), "http://127.0.0.1:8123/")

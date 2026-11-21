@@ -24,7 +24,8 @@ M=$(fetch_manifest "$TAG" "$W")
 manifest_set "$M" rollout "$VAL"
 manifest_set "$M" rollout_days "$DAYS"
 if [ $YES = 0 ]; then printf 'Offer %s %s to %s%% of users? [y/N] ' "$PRODUCT" "$TAG" "$P"; read -r ok; case "$ok" in y|Y|yes) ;; *) echo "cancelled"; exit 1;; esac; fi
-gh release upload "$TAG" "$M" --repo "$REPO" --clobber
+sh scripts/sign.sh "$M" >/dev/null
+gh release upload "$TAG" "$M"* --repo "$REPO" --clobber
 sh scripts/channel.sh "$M" >/dev/null 2>&1 || true
 echo "✓ $TAG offered to ${P}% of users"
 [ "$P" = 100 ] && sh scripts/tap.sh "$TAG"

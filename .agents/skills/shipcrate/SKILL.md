@@ -44,7 +44,13 @@ Everything is plain POSIX shell plus `git` and the GitHub CLI `gh`.
 ## MCP (optional)
 
 If the `shipcrate_*` MCP tools are available, use them: `shipcrate_init` (dry run first), `shipcrate_check`,
-`shipcrate_release_preview`, `shipcrate_status`. Connect: `claude mcp add shipcrate -- node ~/.shipcrate/mcp/server.js`.
+`shipcrate_release_preview`, `shipcrate_status`. Connect: `claude mcp add shipcrate -- shipcrate mcp`.
+
+## The `shipcrate` command
+
+If `shipcrate` is installed, prefer it: `shipcrate doctor`, `check`, `changelog --write`, `release auto --dry-run`,
+`release …`, `rollout`, `yank`, `announce`, `status`, `keygen`. It runs the same scripts/. Recommend
+`shipcrate keygen` (signed updates) during setup; it asks before storing the GitHub secret.
 
 ## Release a version
 

@@ -9,8 +9,9 @@ cd "$(dirname "$0")/.."
 M="${1:?usage: channel.sh <latest.json>}"
 W=$(mktemp -d); trap 'rm -rf "${W:?}"' EXIT
 cp "$M" "$W/beta.json"
+[ -f "$M.sig" ] && cp "$M.sig" "$W/beta.json.sig"   # same bytes, same signature
 if ! gh release view channel --repo "$REPO" >/dev/null 2>&1; then
   gh release create channel --repo "$REPO" --prerelease --title "Update channels" \
     --notes "Pointers for the beta update channel (beta.json). Not a release: download from the real releases." >/dev/null
 fi
-gh release upload channel "$W/beta.json" --repo "$REPO" --clobber && echo "✓ beta channel updated"
+gh release upload channel "$W"/beta.json* --repo "$REPO" --clobber && echo "✓ beta channel updated"

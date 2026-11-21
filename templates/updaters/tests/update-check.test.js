@@ -50,6 +50,17 @@ test("rollout, yank, security, beta channel", () => {
   try { assert.match(u.policy().manifest, /\/releases\/download\/channel\/beta\.json$/); } finally { delete process.env["{{ENV}}_CHANNEL"]; }
 });
 
+test("signed updates: Ed25519 signatures, tampering refused", () => {
+  const pk = "MsAhEo6wDmN12G+ny87AFJjVvz611LJ3tvW4QaLBGyo=", msg = '{"version":"9.9.9","assets":{}}';
+  const sig = "lQbyJHY1BoYikkMnQdtFJZijL+YVBpR9Mv0X7vvoOjdip0r88LEPjqV2V8S1MYjn2tvlca+mn5FoEh0zosxCCg==";
+  assert.ok(u.signatureOk(msg, sig, pk));
+  assert.ok(!u.signatureOk(msg.replace("9.9.9", "9.9.8"), sig, pk));
+  assert.ok(!u.signatureOk(msg, "AAAA", pk));
+  const pk2 = Buffer.from("3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c", "hex").toString("base64");
+  const sig2 = Buffer.from("92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00", "hex").toString("base64");
+  assert.ok(u.signatureOk(Buffer.from([0x72]), sig2, pk2));
+});
+
 test("timed rollout grows over days", () => {
   const p = u.policy({ manifest: "x", urlPrefix: "https://github.com/" });
   const l = u.parseManifest(JSON.stringify({ version: "2.0.0", published: "2026-11-20T00:00:00Z", rollout_days: 4 }), "k", p);
