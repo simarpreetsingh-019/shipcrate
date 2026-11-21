@@ -4,21 +4,26 @@
 #   sh scripts/release.sh 1.2.0 ["extra notes"] [--security] [--rollout 10] [--yes] [--dry-run]
 #   sh scripts/release.sh 1.3.0-beta.1          a pre-release: only the beta channel gets it, Homebrew stays put
 # --rollout N offers it to N% of users first (widen with scripts/rollout.sh; Homebrew follows at 100%).
+# --rollout-days D grows it from 0% (or --rollout N) to 100% over D days on its own: no follow-up commands.
 # --dry-run builds and prints the notes but changes nothing. Asks before publishing unless --yes.
 # Needs git and gh (`gh auth login`). Tokens never go in files: webhook settings come from the environment.
 set -eu
 cd "$(dirname "$0")/.."
 . ./release.conf; . scripts/lib.sh
-V=""; NOTES=""; FLAGS=""; YES=0; DRY=0; ROLLOUT=100; NEXT=""
+V=""; NOTES=""; FLAGS=""; YES=0; DRY=0; ROLLOUT=100; ROLLOUT_DAYS=""; NEXT=""
 for a in "$@"; do
   if [ "$NEXT" = rollout ]; then ROLLOUT="$a"; NEXT=""; continue; fi
+  if [ "$NEXT" = days ]; then ROLLOUT_DAYS="$a"; NEXT=""; continue; fi
   case "$a" in
-  --yes|-y) YES=1 ;; --dry-run|-n) DRY=1 ;; --security) FLAGS="--security" ;; --rollout) NEXT=rollout ;;
+  --yes|-y) YES=1 ;; --dry-run|-n) DRY=1 ;; --security) FLAGS="--security" ;; --rollout) NEXT=rollout ;; --rollout-days) NEXT=days ;;
   -*) echo "unknown flag $a"; exit 2 ;;
   *) if [ -z "$V" ]; then V="${a#v}"; else NOTES="$a"; fi ;;
 esac; done
 [ -n "$V" ] || { sed -n '2,9p' "$0"; exit 2; }
 case "$ROLLOUT" in ''|*[!0-9]*) echo "✗ --rollout takes a percent (1-100)"; exit 2 ;; esac
+case "$ROLLOUT_DAYS" in ""|[1-9]|[1-9][0-9]) ;; *) echo "✗ --rollout-days takes 1-99"; exit 2 ;; esac
+if [ -n "$ROLLOUT_DAYS" ] && [ "$ROLLOUT" = 100 ]; then ROLLOUT=0; fi
+export ROLLOUT_DAYS
 PRE=0; case "$V" in *-*) PRE=1 ;; esac
 say() { printf '%s\n' "$*"; }
 die() { say "✗ $*"; exit 1; }
@@ -91,8 +96,9 @@ else
   done
 fi
 
-if [ "$BUILD_WHERE" != local ] && [ "$ROLLOUT" -lt 100 ]; then sh scripts/rollout.sh "$ROLLOUT" --yes; fi
+if [ "$BUILD_WHERE" != local ] && { [ "$ROLLOUT" -lt 100 ] || [ -n "$ROLLOUT_DAYS" ]; }; then sh scripts/rollout.sh "$ROLLOUT" --yes ${ROLLOUT_DAYS:+--days "$ROLLOUT_DAYS"}; fi
 if [ $PRE = 1 ]; then say "• pre-release: beta channel only; Homebrew and stable users stay on the current version"
+elif [ -n "$ROLLOUT_DAYS" ]; then say "• timed rollout: $ROLLOUT% → 100% over $ROLLOUT_DAYS days, on its own. Homebrew is updated now (its users choose when to upgrade)."; sh scripts/tap.sh "$V"
 elif [ "$ROLLOUT" -lt 100 ]; then say "• staged rollout at $ROLLOUT%: Homebrew follows when you run scripts/rollout.sh 100"
 else sh scripts/tap.sh "$V"; fi
 say "✓ Released $PRODUCT $V: https://github.com/$REPO/releases/tag/v$V"

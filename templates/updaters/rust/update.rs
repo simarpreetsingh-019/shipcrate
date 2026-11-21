@@ -11,7 +11,7 @@
 //!   `{{BINARY}} upgrade [--rollback]`:  update::upgrade(env!("CARGO_PKG_VERSION"), rollback)
 //! Announcements (scripts/announce.sh) print once per message, inside `notify`; or read them with `announcement()`.
 //! Beta channel: `{{ENV}}_CHANNEL=beta` reads the beta manifest (pre-releases plus every stable release).
-//! Staged rollouts (`"rollout": N`) and pulled versions (`"yanked"`) are handled for you.
+//! Staged rollouts (`"rollout": N`, or growing over `"rollout_days"`) and pulled versions (`"yanked"`) are handled for you.
 //! A mirror or your own update server: set `{{ENV}}_UPDATE_MANIFEST=https://…/latest.json` (same format).
 
 use std::collections::BTreeMap;
@@ -58,8 +58,12 @@ pub struct Latest {
     pub announcement: Option<Announcement>,
     /// Versions the publisher pulled (scripts/yank.sh). Copies on one of these are moved to `version`.
     pub yanked: Vec<String>,
-    /// Staged rollout percent (scripts/rollout.sh); 100 = everyone.
+    /// Staged rollout percent (scripts/rollout.sh); 100 = everyone. With `rollout_days`, the starting percent.
     pub rollout: u8,
+    /// Timed rollout: grow from `rollout` to 100% over this many days after `published` (0 = off).
+    pub rollout_days: u32,
+    /// Publish time, seconds since 1970 (0 if unknown).
+    pub published: u64,
 }
 
 impl Latest {
@@ -71,8 +75,35 @@ impl Latest {
         if self.is_yanked(current) {
             return self.version != current.trim_start_matches('v');
         }
-        is_newer(&self.version, current) && (self.security || bucket < self.rollout)
+        is_newer(&self.version, current) && (self.security || bucket < self.effective_rollout(now()))
     }
+    /// The rollout percent right now: fixed, or growing linearly to 100% over `rollout_days`.
+    pub fn effective_rollout(&self, at: u64) -> u8 {
+        if self.rollout_days == 0 || self.published == 0 {
+            return self.rollout;
+        }
+        let span = self.rollout_days as u64 * DAY;
+        let done = at.saturating_sub(self.published).min(span);
+        let start = self.rollout as u64;
+        (start + (100 - start.min(100)) * done / span).min(100) as u8
+    }
+}
+
+/// "2026-11-20T09:30:00Z" → seconds since 1970 (UTC). None if it doesn't parse.
+pub fn parse_utc(s: &str) -> Option<u64> {
+    let n = |a: usize, b: usize| s.get(a..b)?.parse::<i64>().ok();
+    let (y, m, d, hh, mm, ss) = (n(0, 4)?, n(5, 7)?, n(8, 10)?, n(11, 13)?, n(14, 16)?, n(17, 19)?);
+    if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
+        return None;
+    }
+    // days from civil (Howard Hinnant's algorithm)
+    let y2 = if m <= 2 { y - 1 } else { y };
+    let era = if y2 >= 0 { y2 } else { y2 - 399 } / 400;
+    let yoe = y2 - era * 400;
+    let doy = (153 * (m + if m > 2 { -3 } else { 9 }) + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146097 + doe - 719468;
+    u64::try_from(days * 86400 + hh * 3600 + mm * 60 + ss).ok()
 }
 
 /// Remove control characters (terminal escape sequences) and cap the length: messages come from the network.
@@ -313,10 +344,14 @@ pub fn parse_manifest(body: &str, key: &str, p: &Policy) -> Option<Latest> {
         Some(Json::Arr(v)) => v.iter().filter_map(Json::str).map(|s| clean(s, 32)).collect(),
         _ => Vec::new(),
     };
-    let rollout = match j.get("rollout") { Some(Json::Num(n)) => n.clamp(0.0, 100.0) as u8, _ => 100 };
+    let rollout_days = match j.get("rollout_days") { Some(Json::Num(n)) if *n > 0.0 => n.min(365.0) as u32, _ => 0 };
+    let rollout = match j.get("rollout") { Some(Json::Num(n)) => n.clamp(0.0, 100.0) as u8, _ if rollout_days > 0 => 0, _ => 100 };
+    let published = j.get("published").and_then(Json::str).and_then(parse_utc).unwrap_or(0);
     Some(Latest {
         yanked,
         rollout,
+        rollout_days,
+        published,
         announcement,
         page: j.get("page").and_then(Json::str).map(String::from).unwrap_or_else(|| format!("https://github.com/{REPO}/releases")),
         security: matches!(j.get("security"), Some(Json::Bool(true))) || notes.to_lowercase().contains("[security]"),
@@ -340,7 +375,7 @@ fn cache_file() -> Option<PathBuf> {
 
 fn to_cache(l: &Latest) -> String {
     let a = l.announcement.clone().unwrap_or(Announcement { id: String::new(), level: String::new(), message: String::new(), url: String::new(), below: String::new() });
-    format!("{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n", now(), l.version, l.page, l.security as u8, a.id, a.level, a.url, a.below, a.message, l.rollout, l.yanked.join(","))
+    format!("{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n", now(), l.version, l.page, l.security as u8, a.id, a.level, a.url, a.below, a.message, l.rollout, l.yanked.join(","), l.rollout_days, l.published)
 }
 
 fn from_cache(text: &str) -> Option<(u64, Option<Latest>)> {
@@ -352,7 +387,7 @@ fn from_cache(text: &str) -> Option<(u64, Option<Latest>)> {
     let g = |i: usize| v.get(i).copied().unwrap_or("").to_string();
     let announcement = (!g(4).is_empty()).then(|| Announcement { id: g(4), level: g(5), url: g(6), below: g(7), message: g(8) });
     let yanked = g(10).split(',').filter(|s| !s.is_empty()).map(String::from).collect();
-    Some((stamp, Some(Latest { version: g(1), page: g(2), notes: String::new(), security: g(3) == "1", asset: None, announcement, rollout: g(9).parse().unwrap_or(100), yanked })))
+    Some((stamp, Some(Latest { version: g(1), page: g(2), notes: String::new(), security: g(3) == "1", asset: None, announcement, rollout: g(9).parse().unwrap_or(100), yanked, rollout_days: g(11).parse().unwrap_or(0), published: g(12).parse().unwrap_or(0) })))
 }
 
 /// The manifest, fetched at most once a day (cached on disk). None when checks aren't allowed.
@@ -576,6 +611,22 @@ mod tests {
         let back = from_cache(&to_cache(&l)).unwrap().1.unwrap();
         assert_eq!((back.rollout, back.yanked.clone()), (25, vec!["1.3.0".to_string()]));
         assert!(notice_line(&l, "1.3.0").contains("pulled"));
+    }
+
+    #[test]
+    fn timed_rollout_grows_over_days() {
+        let p = Policy { manifest: String::new(), url_prefix: "https://github.com/".into(), allow_file: false, allow_http_local: false };
+        assert_eq!(parse_utc("1970-01-02T00:00:00Z"), Some(86_400));
+        assert_eq!(parse_utc("2026-11-20T00:00:00Z"), Some(1_795_132_800));
+        let l = parse_manifest(r#"{"version":"2.0.0","published":"2026-11-20T00:00:00Z","rollout_days":4}"#, "k", &p).unwrap();
+        let t0 = 1_795_132_800;
+        assert_eq!(l.effective_rollout(t0), 0);
+        assert_eq!(l.effective_rollout(t0 + 2 * DAY), 50);
+        assert_eq!(l.effective_rollout(t0 + 9 * DAY), 100);
+        let s = parse_manifest(r#"{"version":"2.0.0","published":"2026-11-20T00:00:00Z","rollout_days":4,"rollout":20}"#, "k", &p).unwrap();
+        assert_eq!(s.effective_rollout(t0 + 2 * DAY), 60);
+        let back = from_cache(&to_cache(&l)).unwrap().1.unwrap();
+        assert_eq!((back.rollout_days, back.published), (4, t0));
     }
 
     #[test]

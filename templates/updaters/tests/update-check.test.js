@@ -50,6 +50,16 @@ test("rollout, yank, security, beta channel", () => {
   try { assert.match(u.policy().manifest, /\/releases\/download\/channel\/beta\.json$/); } finally { delete process.env["{{ENV}}_CHANNEL"]; }
 });
 
+test("timed rollout grows over days", () => {
+  const p = u.policy({ manifest: "x", urlPrefix: "https://github.com/" });
+  const l = u.parseManifest(JSON.stringify({ version: "2.0.0", published: "2026-11-20T00:00:00Z", rollout_days: 4 }), "k", p);
+  const t0 = 1795132800;
+  assert.strictEqual(l.published, t0);
+  assert.strictEqual(u.effectiveRollout(l, t0), 0);
+  assert.strictEqual(u.effectiveRollout(l, t0 + 2 * 86400), 50);
+  assert.strictEqual(u.effectiveRollout(l, t0 + 9 * 86400), 100);
+});
+
 test("loopback manifest only for this machine", () => {
   assert.strictEqual(u.loopbackOrigin("http://127.0.0.1:8123/latest.json"), "http://127.0.0.1:8123/");
   assert.strictEqual(u.loopbackOrigin("http://127.0.0.1.evil.com/x"), null);

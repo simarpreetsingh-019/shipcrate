@@ -68,6 +68,10 @@ valid dist/r.json 'assert d["rollout"]==25' || fail "rollout.sh didn't set 25%"
 sh scripts/rollout.sh 100 --file dist/r.json >/dev/null
 valid dist/r.json 'assert "rollout" not in d' || fail "rollout 100 should remove the key"
 sh scripts/rollout.sh 101 --file dist/r.json >/dev/null 2>&1 && fail "rollout.sh accepted 101%"
+sh scripts/rollout.sh 0 --days 7 --file dist/r.json >/dev/null
+valid dist/r.json 'assert d["rollout"]==0 and d["rollout_days"]==7' || fail "timed rollout not set"
+sh scripts/rollout.sh 100 --file dist/r.json >/dev/null
+valid dist/r.json 'assert "rollout" not in d and "rollout_days" not in d' || fail "rollout 100 should end a timed rollout"
 sh scripts/yank.sh 9.9.8 --file dist/r.json >/dev/null && sh scripts/yank.sh 9.9.7 --file dist/r.json >/dev/null && sh scripts/yank.sh 9.9.8 --file dist/r.json >/dev/null
 valid dist/r.json 'assert d["yanked"]==["9.9.8","9.9.7"], d["yanked"]' || fail "yank.sh list wrong"
 ROLLOUT=10 sh scripts/manifest.sh 9.9.9 >/dev/null && valid dist/latest.json 'assert d["rollout"]==10' || fail "manifest.sh ignored ROLLOUT"

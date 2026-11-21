@@ -31,6 +31,11 @@ expect(Updater.parseManifest(m2(["rollout": 25]), current: "1.0.0", bucket: 60) 
 expect(Updater.parseManifest(m2(["rollout": 0, "security": true]), current: "1.0.0", bucket: 99) != nil, "security ignores rollout")
 let back = Updater.parseManifest(m2(["yanked": ["1.3.0"]]), current: "1.3.0", bucket: 99)
 expect(back != nil && back!.replacesYanked, "yanked version is offered the older good release")
+let t0 = ISO8601DateFormatter().date(from: "2026-11-20T00:00:00Z")!
+let timed: [String: Any] = ["published": "2026-11-20T00:00:00Z", "rollout_days": 4]
+expect(Updater.effectiveRollout(timed, now: t0) == 0, "timed rollout starts at 0%")
+expect(Updater.effectiveRollout(timed, now: t0.addingTimeInterval(2 * 86400)) == 50, "timed rollout: 50% after 2 of 4 days")
+expect(Updater.effectiveRollout(timed, now: t0.addingTimeInterval(9 * 86400)) == 100, "timed rollout: 100% when done")
 Updater.channel = "beta"
 expect(Updater.manifestURL.absoluteString.hasSuffix("/releases/download/channel/beta.json"), "beta channel URL")
 Updater.channel = "stable"

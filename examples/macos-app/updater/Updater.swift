@@ -152,7 +152,16 @@ final class Updater: ObservableObject {
     }
 
     /// Parse latest.json; returns a release only if it's newer and its download is from an allowed host.
-    static func parseManifest(_ data: Data, current: String, bucket: Int = 0) -> Release? {
+    /// The rollout percent at `now`: fixed ("rollout"), or growing to 100% over "rollout_days" after "published".
+    static func effectiveRollout(_ j: [String: Any], now: Date = Date()) -> Int {
+        let days = (j["rollout_days"] as? Int).map { max(0, min(365, $0)) } ?? 0
+        let start = (j["rollout"] as? Int).map { max(0, min(100, $0)) } ?? (days > 0 ? 0 : 100)
+        guard days > 0, let p = (j["published"] as? String).flatMap({ ISO8601DateFormatter().date(from: $0) }) else { return start }
+        let done = min(max(0, now.timeIntervalSince(p)), Double(days) * 86400)
+        return min(100, start + Int(Double(100 - start) * done / (Double(days) * 86400)))
+    }
+
+    static func parseManifest(_ data: Data, current: String, bucket: Int = 0, now: Date = Date()) -> Release? {
         guard let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let v = (j["version"] as? String).map({ $0.hasPrefix("v") ? String($0.dropFirst()) : $0 }),
               let assets = j["assets"] as? [String: Any],
@@ -161,7 +170,7 @@ final class Updater: ObservableObject {
               Self.allowedHosts.contains(z.host ?? ""),
               let sha = (a["sha256"] as? String)?.lowercased(), sha.count == 64 else { return nil }
         let yanked = ((j["yanked"] as? [String]) ?? []).map { $0.hasPrefix("v") ? String($0.dropFirst()) : $0 }.contains(current) && v != current
-        let rollout = (j["rollout"] as? Int).map { max(0, min(100, $0)) } ?? 100
+        let rollout = effectiveRollout(j, now: now)
         let notes = j["notes"] as? String ?? ""
         let security = (j["security"] as? Bool ?? false) || notes.range(of: "[security]", options: .caseInsensitive) != nil
         // Pulled version → always offer the way back; security → always; otherwise newer and inside the rollout.

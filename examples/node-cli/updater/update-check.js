@@ -104,7 +104,17 @@ function parseManifest(body, key, p) {
   return { version: String(j.version).replace(/^v/, ""), page: j.page || `https://github.com/${REPO}/releases`, notes,
     security: j.security === true || notes.toLowerCase().includes("[security]"), asset, announcement: parseAnnouncement(j.announcement),
     yanked: (Array.isArray(j.yanked) ? j.yanked : []).filter((v) => typeof v === "string").map((v) => clean(v, 32).replace(/^v/, "")),
-    rollout: typeof j.rollout === "number" ? Math.max(0, Math.min(100, Math.floor(j.rollout))) : 100 };
+    rollout: typeof j.rollout === "number" ? Math.max(0, Math.min(100, Math.floor(j.rollout))) : (j.rollout_days > 0 ? 0 : 100),
+    rollout_days: typeof j.rollout_days === "number" && j.rollout_days > 0 ? Math.min(365, Math.floor(j.rollout_days)) : 0,
+    published: Number.isFinite(Date.parse(j.published)) ? Math.floor(Date.parse(j.published) / 1000) : 0 };
+}
+
+// The rollout percent right now: fixed, or growing linearly to 100% over rollout_days.
+function effectiveRollout(l, at = Date.now() / 1000) {
+  const start = l.rollout ?? 100;
+  if (!l.rollout_days || !l.published) return start;
+  const span = l.rollout_days * 86400, done = Math.min(Math.max(0, at - l.published), span);
+  return Math.min(100, Math.floor(start + (100 - start) * done / span));
 }
 
 const isYanked = (l, current) => (l.yanked || []).includes(String(current).replace(/^v/, ""));
@@ -112,7 +122,7 @@ const isYanked = (l, current) => (l.yanked || []).includes(String(current).repla
 // Yanked → always (if there's somewhere to go); security → always; otherwise by rollout bucket.
 function offeredTo(l, current, bucket) {
   if (isYanked(l, current)) return l.version !== String(current).replace(/^v/, "");
-  return isNewer(l.version, current) && (l.security || bucket < (l.rollout ?? 100));
+  return isNewer(l.version, current) && (l.security || bucket < effectiveRollout(l));
 }
 
 // This copy's bucket, 0-99: random once, kept locally, never sent anywhere.
@@ -225,4 +235,4 @@ async function upgradeAt(exe, current, rollback, p) {
   }
 }
 
-module.exports = { loopbackOrigin, isYanked, offeredTo, rolloutBucket, clean, announcement, announcementLine, checksAllowed, isNewer, platformKey, policy, parseManifest, fetchLatest, check, noticeLine, notify, upgrade, upgradeAt };
+module.exports = { effectiveRollout, loopbackOrigin, isYanked, offeredTo, rolloutBucket, clean, announcement, announcementLine, checksAllowed, isNewer, platformKey, policy, parseManifest, fetchLatest, check, noticeLine, notify, upgrade, upgradeAt };

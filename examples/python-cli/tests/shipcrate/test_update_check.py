@@ -96,6 +96,15 @@ class RolloutAndYank(unittest.TestCase):
         sec = u.parse_manifest(json.dumps({"version": "1.2.0", "rollout": 0, "security": True}), "k", p)
         self.assertTrue(u.offered_to(sec, "1.0.0", 99))
 
+    def test_timed_rollout(self):
+        p = u.Policy(manifest="x", url_prefix="https://github.com/")
+        l = u.parse_manifest(json.dumps({"version": "2.0.0", "published": "2026-11-20T00:00:00Z", "rollout_days": 4}), "k", p)
+        t0 = 1795132800
+        self.assertEqual(l["published"], t0)
+        self.assertEqual(u.effective_rollout(l, t0), 0)
+        self.assertEqual(u.effective_rollout(l, t0 + 2 * 86400), 50)
+        self.assertEqual(u.effective_rollout(l, t0 + 9 * 86400), 100)
+
     def test_beta_channel_url(self):
         os.environ[u.CHANNEL_ENV] = "beta"
         try:

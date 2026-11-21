@@ -117,7 +117,35 @@ def parse_manifest(body, key, policy):
             "notes": notes, "security": bool(j.get("security")) or "[security]" in notes.lower(), "asset": asset,
             "announcement": _announcement(j.get("announcement")),
             "yanked": [clean(v, 32).lstrip("v") for v in (j.get("yanked") or []) if isinstance(v, str)],
-            "rollout": max(0, min(100, int(j.get("rollout", 100)))) if isinstance(j.get("rollout", 100), (int, float)) else 100}
+            "rollout": _rollout_start(j),
+            "rollout_days": max(0, min(365, int(j["rollout_days"]))) if isinstance(j.get("rollout_days"), (int, float)) else 0,
+            "published": _parse_utc(j.get("published"))}
+
+
+def _rollout_start(j):
+    r = j.get("rollout")
+    if isinstance(r, (int, float)):
+        return max(0, min(100, int(r)))
+    return 0 if isinstance(j.get("rollout_days"), (int, float)) and j["rollout_days"] > 0 else 100
+
+
+def _parse_utc(s):
+    """'2026-11-20T09:30:00Z' → seconds since 1970, or 0."""
+    import calendar
+    try:
+        return calendar.timegm(time.strptime(str(s), "%Y-%m-%dT%H:%M:%SZ"))
+    except (TypeError, ValueError):
+        return 0
+
+
+def effective_rollout(latest, at=None):
+    """The rollout percent right now: fixed, or growing linearly to 100% over rollout_days."""
+    start, days, pub = latest.get("rollout", 100), latest.get("rollout_days", 0), latest.get("published", 0)
+    if not days or not pub:
+        return start
+    span = days * DAY
+    done = min(max(0, (at if at is not None else time.time()) - pub), span)
+    return min(100, int(start + (100 - start) * done // span))
 
 
 def is_yanked(latest, current):
@@ -128,7 +156,7 @@ def offered_to(latest, current, bucket):
     """Yanked → always (if there's somewhere to go); security → always; otherwise by rollout bucket."""
     if is_yanked(latest, current):
         return latest["version"] != current.lstrip("v")
-    return is_newer(latest["version"], current) and (latest.get("security") or bucket < latest.get("rollout", 100))
+    return is_newer(latest["version"], current) and (latest.get("security") or bucket < effective_rollout(latest))
 
 
 def rollout_bucket():
