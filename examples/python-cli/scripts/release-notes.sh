@@ -16,7 +16,7 @@ SUMS=""
 for t in $TARGETS; do a=$(asset_for "$t"); [ -f "dist/$a.sha256" ] && SUMS="$SUMS
 | \`$t\` | \`$a\` | \`$(cut -d' ' -f1 "dist/$a.sha256")\` |"; done
 [ -n "$SUMS" ] && printf '\n**SHA-256**\n\n| Platform | File | SHA-256 |\n|---|---|---|%s\n' "$SUMS"
-printf '\n**Verify a download:** `shasum -a 256 -c SHA256SUMS --ignore-missing` and `gh attestation verify <file> --repo %s`\n' "$REPO"
+printf '\n**Verify a download:** `shasum -a 256 -c SHA256SUMS --ignore-missing` · `gh attestation verify <file> --repo %s` · or with Sigstore: `cosign verify-blob --bundle <file>.sigstore.json --certificate-identity-regexp "^https://github.com/%s/" --certificate-oidc-issuer https://token.actions.githubusercontent.com <file>`. What'"'"'s inside: `%s.sbom.spdx.json`.\n' "$REPO" "$REPO" "$TOKEN"
 if [ "$TAP_REPO" != "none" ]; then
   if [ "$TYPE" = app ]; then printf '\n**Install / update:** `brew install --cask %s/%s/%s` · `brew upgrade --cask %s`, or use the **Update** button in the app.\n' "${TAP_REPO%%/*}" "${TAP_REPO#*/homebrew-}" "$TOKEN" "$TOKEN"
   else printf '\n**Install / update:** `brew install %s/%s/%s` · `brew upgrade %s`, or `%s upgrade`.\n' "${TAP_REPO%%/*}" "${TAP_REPO#*/homebrew-}" "$TOKEN" "$TOKEN" "$BINARY"; fi
