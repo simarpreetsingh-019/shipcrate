@@ -89,4 +89,21 @@ if [ "$TYPE" = cli ] && { [ "$T" = "$(host_target)" ] || [ "$T" = any ]; } && [ 
   # downloads from other hosts are refused with the default manifest
   grep -q 'unexpected download location' install.sh || fail "install.sh lost its host check"
 fi
+# changelog.sh: version and section from conventional commits, in a throwaway git repo
+G="$W/g"; mkdir -p "$G" && cp -R "$ROOT/scripts" "$ROOT/release.conf" "$G/" && cd "$G"
+git init -q && git config user.email t@example.invalid && git config user.name t && git config commit.gpgsign false
+printf '# Changelog\n\n## [1.2.3] - 2026-01-01\n- old\n' > CHANGELOG.md
+git add -A && git commit -qm "chore: init" --no-verify && git tag v1.2.3
+c() { git commit -q --allow-empty --no-verify -m "$1"; }
+c "fix: crash on empty input"
+[ "$(sh scripts/changelog.sh --version)" = 1.2.4 ] || fail "fix should be a patch"
+c "feat(cli): add --json output"; c "docs: typo"; c "fix(security): reject bad paths"
+[ "$(sh scripts/changelog.sh --version)" = 1.3.0 ] || fail "feat should be a minor"
+sh scripts/changelog.sh | grep -q '### Security' || fail "no Security section"
+sh scripts/changelog.sh | grep -q 'Typo' && fail "docs commits should be left out"
+c "feat!: new config format"
+[ "$(sh scripts/changelog.sh --version)" = 2.0.0 ] || fail "breaking should be a major"
+sh scripts/changelog.sh --write >/dev/null && grep -q '^## \[2.0.0\]' CHANGELOG.md && grep -q 'Breaking' CHANGELOG.md || fail "--write didn't add the section"
+[ "$(grep -n '^## \[' CHANGELOG.md | head -1 | cut -d'[' -f2 | cut -d']' -f1)" = 2.0.0 ] || fail "new section should be on top"
+cd "$W/p"
 echo "release scripts and installer: ok"

@@ -2,6 +2,7 @@
 # Publish {{PRODUCT}} version $1:
 #   guardrails → quality gate → set version → build → checksum → manifest → GitHub release → Homebrew tap → webhook
 #   sh scripts/release.sh 1.2.0 ["extra notes"] [--security] [--rollout 10] [--yes] [--dry-run]
+#   sh scripts/release.sh auto                  the version scripts/changelog.sh suggests from your commits
 #   sh scripts/release.sh 1.3.0-beta.1          a pre-release: only the beta channel gets it, Homebrew stays put
 # --rollout N offers it to N% of users first (widen with scripts/rollout.sh; Homebrew follows at 100%).
 # --rollout-days D grows it from 0% (or --rollout N) to 100% over D days on its own: no follow-up commands.
@@ -19,7 +20,8 @@ for a in "$@"; do
   -*) echo "unknown flag $a"; exit 2 ;;
   *) if [ -z "$V" ]; then V="${a#v}"; else NOTES="$a"; fi ;;
 esac; done
-[ -n "$V" ] || { sed -n '2,9p' "$0"; exit 2; }
+[ -n "$V" ] || { sed -n '2,10p' "$0"; exit 2; }
+if [ "$V" = auto ]; then V=$(sh scripts/changelog.sh --version) || exit 1; echo "→ Version from your commits: $V"; fi
 case "$ROLLOUT" in ''|*[!0-9]*) echo "✗ --rollout takes a percent (1-100)"; exit 2 ;; esac
 case "$ROLLOUT_DAYS" in ""|[1-9]|[1-9][0-9]) ;; *) echo "✗ --rollout-days takes 1-99"; exit 2 ;; esac
 if [ -n "$ROLLOUT_DAYS" ] && [ "$ROLLOUT" = 100 ]; then ROLLOUT=0; fi
@@ -45,7 +47,7 @@ BRANCH=$(git rev-parse --abbrev-ref HEAD)
 DEFAULT=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##'); DEFAULT=${DEFAULT:-main}
 [ "$BRANCH" = "$DEFAULT" ] || guard "release from $DEFAULT (you're on $BRANCH)"
 git fetch -q origin "$BRANCH" 2>/dev/null && [ "$(git rev-parse HEAD)" != "$(git rev-parse "origin/$BRANCH" 2>/dev/null)" ] && guard "$BRANCH differs from origin/$BRANCH: pull or push first"
-grep -Eq "^## \[?v?$V\]?([ ]|$)" CHANGELOG.md 2>/dev/null || guard "CHANGELOG.md has no '## [$V]' section (it becomes \"What's new\")"
+grep -Eq "^## \[?v?$V\]?([ ]|$)" CHANGELOG.md 2>/dev/null || guard "CHANGELOG.md has no '## [$V]' section (it becomes \"What's new\"). Write one from your commits: sh scripts/changelog.sh --write"
 if [ "${ALLOW_NO_CI:-}" != 1 ]; then
   CI=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --json conclusion -q '.[0].conclusion' 2>/dev/null || true)
   [ "$CI" = success ] || guard "CI hasn't passed for this commit (status: ${CI:-none}). Push and wait, or ALLOW_NO_CI=1 for a first release"
