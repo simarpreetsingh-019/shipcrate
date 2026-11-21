@@ -1,9 +1,112 @@
 #!/bin/sh
-# shipcrate: set up releases, checksums, Homebrew, provenance and update checks in a repo.
+# shipcrate: releases and updates for your products, in one command.
 #
-#   shipcrate init [target-dir] [options]     copy the filled-in templates into a repo (default: .)
-#   shipcrate version
+# Set up a project:
+#   shipcrate init [dir] [options]     add the release tooling to a repo (see "shipcrate init --help")
+#   shipcrate doctor                   check this project's setup and explain any fixes
 #
+# Every day (run inside a project; they call the project's own scripts/):
+#   shipcrate check [--quick|--release]        the quality gate
+#   shipcrate changelog [--write|--version]    next version + CHANGELOG section from your commits
+#   shipcrate release <X.Y.Z|auto> [--dry-run] [--security] [--rollout N] [--rollout-days D] [--yes]
+#   shipcrate rollout <percent> [--days D]     widen (or time) a staged rollout
+#   shipcrate yank <X.Y.Z> [--to GOOD] [--reason "…"]   pull a bad release; users are moved back
+#   shipcrate announce "message" [--level …] [--url …] [--below X.Y.Z] | --clear
+#   shipcrate status                           settings + what's live (version, rollout, yanked, message)
+#   shipcrate keygen                           make the signing key for signed updates
+#
+# Other:
+#   shipcrate demo                     60-second offline demo        shipcrate mcp       run the MCP server (stdio)
+#   shipcrate self-update              update shipcrate itself       shipcrate version
+set -eu
+KIT_VERSION=0.4.0
+# Resolve symlinks (Homebrew and ~/.local/bin install a link to this file).
+SELF="$0"; while [ -L "$SELF" ]; do L=$(readlink "$SELF"); case "$L" in /*) SELF="$L" ;; *) SELF="$(dirname "$SELF")/$L" ;; esac; done
+KIT=$(cd "$(dirname "$SELF")/.." && pwd)
+T="$KIT/templates"
+say() { printf '%s\n' "$*"; }
+die() { say "shipcrate: $*" >&2; exit 1; }
+
+usage() { sed -n '2,22p' "$SELF" | sed 's/^# \{0,1\}//'; }
+init_usage() { sed -n '/^# init options/,/^# Dependency-free/p' "$SELF" | sed 's/^# \{0,1\}//'; }
+
+# The project root: the nearest folder (from here up) with a release.conf.
+project() {
+  d=$(pwd)
+  while [ "$d" != / ]; do [ -f "$d/release.conf" ] && { echo "$d"; return 0; }; d=$(dirname "$d"); done
+  die "no release.conf here or above: run this inside a project set up with 'shipcrate init'"
+}
+script() { # script NAME args… : run the project's own scripts/NAME.sh
+  n="$1"; shift; P=$(project)
+  [ -f "$P/scripts/$n.sh" ] || die "$P/scripts/$n.sh is missing: rerun 'shipcrate init' there to add new scripts (existing files are kept)"
+  cd "$P" && exec sh "scripts/$n.sh" "$@"
+}
+
+doctor() {
+  P=$(project); cd "$P"; . ./release.conf; bad=0
+  ok() { printf '  ✔ %s\n' "$1"; }
+  no() { printf '  ✗ %s\n    → %s\n' "$1" "$2"; bad=$((bad+1)); }
+  say "shipcrate doctor: $PRODUCT ($TYPE, $KIT_LANG) in $P"
+  git rev-parse --git-dir >/dev/null 2>&1 && ok "git repository" || no "not a git repository" "git init && git remote add origin https://github.com/$REPO"
+  command -v gh >/dev/null 2>&1 && ok "GitHub CLI installed" || no "GitHub CLI missing" "brew install gh   (Windows: winget install GitHub.cli)"
+  gh auth status >/dev/null 2>&1 && ok "gh signed in" || no "gh not signed in" "gh auth login"
+  git remote get-url origin 2>/dev/null | grep -q "$REPO" && ok "origin is $REPO" || no "origin isn't github.com/$REPO" "git remote set-url origin https://github.com/$REPO (or fix REPO in release.conf)"
+  for f in check release build-release manifest release-notes; do [ -f "scripts/$f.sh" ] || { no "scripts/$f.sh missing" "shipcrate init . (adds missing files, keeps yours)"; }; done
+  [ "$(git config core.hooksPath 2>/dev/null)" = .githooks ] && ok "git hooks on" || no "git hooks off" "sh scripts/install-hooks.sh"
+  [ -f .github/workflows/ci.yml ] && [ -f .github/workflows/release.yml ] && ok "CI and release workflows" || no "workflows missing" "shipcrate init ."
+  [ -e "$ARTIFACT" ] && ok "build output found ($ARTIFACT)" || printf '  • build output %s not built yet (run: %s)\n' "$ARTIFACT" "$BUILD_CMD"
+  grep -Eq '^## \[?v?[0-9]' CHANGELOG.md 2>/dev/null && ok "CHANGELOG has versions" || no "CHANGELOG.md has no version sections" "shipcrate changelog --write"
+  if grep -rqsE 'update::notify|update_check\.notify|update\.notify|Updater\.shared|UpdateButton' --include='*.rs' --include='*.py' --include='*.js' --include='*.ts' --include='*.swift' . 2>/dev/null; then ok "update check wired into the code"
+  else no "update check not wired into your code yet" "see the comment at the top of the file in updater/"; fi
+  if grep -q "^PUBLIC_KEY='[A-Za-z0-9+/=]\{40,\}'" release.conf 2>/dev/null; then ok "signed updates on"; else printf '  • signed updates off (recommended): shipcrate keygen\n'; fi
+  if [ "$TAP_REPO" != none ]; then gh repo view "$TAP_REPO" >/dev/null 2>&1 && ok "Homebrew tap $TAP_REPO exists" || no "Homebrew tap $TAP_REPO doesn't exist yet" "gh repo create $TAP_REPO --public (the first release fills it)"; fi
+  if gh run list --workflow ci.yml --limit 1 --json conclusion -q '.[0].conclusion' 2>/dev/null | grep -q success; then ok "last CI run passed"; else printf '  • no passing CI run yet: push and check the Actions tab\n'; fi
+  say ""; [ $bad = 0 ] && say "All good. Next: shipcrate release <version> --dry-run" || say "$bad thing(s) to fix."
+  return $bad
+}
+
+status() {
+  P=$(project); cd "$P"; . ./release.conf
+  say "$PRODUCT · $TYPE · $KIT_LANG · github.com/$REPO · targets: $TARGETS · builds: $BUILD_WHERE"
+  say "tap: $TAP_REPO · signed updates: $(grep -q "^PUBLIC_KEY='[A-Za-z0-9+/=]\{40,\}'" release.conf && echo on || echo off)"
+  say "last tag: $(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)"
+  J=$(gh release download --repo "$REPO" --pattern latest.json --output - 2>/dev/null) || { say "live: no published release (or gh isn't signed in)"; return 0; }
+  printf '%s\n' "$J" | awk '
+    /"version":/ { gsub(/[",]/, ""); print "live: " $2 }
+    /"rollout":/ { gsub(/[",]/, ""); print "rollout: " $2 "%" }
+    /"rollout_days":/ { gsub(/[",]/, ""); print "timed rollout: " $2 " days" }
+    /"security": true/ { print "security release: yes" }
+    /"yanked":/ { sub(/^[^[]*/, ""); print "yanked: " $0 }
+    /"announcement":/ { m = $0; sub(/.*"message": "/, "", m); sub(/", "url".*/, "", m); print "announcement: " m }
+    /^    "[a-z0-9-]+": \{/ { t = $1; gsub(/[":]/, "", t); plats = plats " " t }
+    END { if (plats != "") print "platforms:" plats }'
+}
+
+cmd="${1:-}"; [ $# -gt 0 ] && shift
+case "$cmd" in
+  init) case "${1:-}" in -h|--help) init_usage; exit 0 ;; esac ;;
+  check) script check "$@" ;;
+  changelog) script changelog "$@" ;;
+  release) script release "$@" ;;
+  rollout) script rollout "$@" ;;
+  yank) script yank "$@" ;;
+  announce) script announce "$@" ;;
+  keygen) script keygen "$@" ;;
+  status) status; exit 0 ;;
+  doctor) doctor; exit $? ;;
+  demo) exec sh "$KIT/examples/demo.sh" ;;
+  mcp) exec node "$KIT/mcp/server.js" ;;
+  self-update)
+    if [ -d "$KIT/.git" ]; then git -C "$KIT" pull --ff-only -q && say "✓ shipcrate $(sh "$KIT/bin/shipcrate" version | cut -d' ' -f2)"
+    elif command -v brew >/dev/null && brew list shipcrate >/dev/null 2>&1; then brew upgrade shipcrate
+    else die "reinstall with the installer: https://github.com/simarpreetsingh-019/shipcrate#install"; fi
+    exit 0 ;;
+  version|--version|-v) say "shipcrate $KIT_VERSION"; exit 0 ;;
+  ""|help|-h|--help) usage; exit 0 ;;
+  *) say "shipcrate: unknown command '$cmd'" >&2; usage; exit 2 ;;
+esac
+
+# ---------------------------------------------------------------- init
 # init options (anything missing is asked for when run in a terminal):
 #   --name NAME        product name, e.g. "Thermo" or "msh"
 #   --type app|cli     macOS .app with a Homebrew cask, or a command-line tool with a Homebrew formula
@@ -17,22 +120,6 @@
 #   --yes              don't ask: use defaults and skip files that already exist
 #   --force            with --yes: overwrite existing files (without --yes you are asked per file)
 # Dependency-free POSIX sh. Writes only inside the target directory; never touches the network.
-set -eu
-KIT_VERSION=0.3.0
-KIT=$(cd "$(dirname "$0")/.." && pwd)
-T="$KIT/templates"
-say() { printf '%s\n' "$*"; }
-die() { say "shipcrate: $*" >&2; exit 1; }
-
-usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; }
-
-cmd="${1:-}"; [ $# -gt 0 ] && shift
-case "$cmd" in
-  init) ;;
-  version|--version|-v) say "shipcrate $KIT_VERSION"; exit 0 ;;
-  ""|help|-h|--help) usage; exit 0 ;;
-  *) usage; exit 2 ;;
-esac
 
 TARGET=.; NAME=""; TYPE=""; KLANG=""; REPO=""; TAP=""; DESC=""; BUNDLE=""; TARGETS=""; DRY=0; YES=0; FORCE=0
 while [ $# -gt 0 ]; do
@@ -41,7 +128,7 @@ while [ $# -gt 0 ]; do
     --repo) REPO="${2:?}"; shift ;;  --tap) TAP="${2:?}"; shift ;;    --desc) DESC="${2:?}"; shift ;;
     --bundle-id) BUNDLE="${2:?}"; shift ;;  --targets) TARGETS="${2:?}"; shift ;;
     --dry-run|-n) DRY=1 ;; --yes|-y) YES=1 ;; --force) FORCE=1 ;;
-    -h|--help) usage; exit 0 ;;
+    -h|--help) init_usage; exit 0 ;;
     -*) die "unknown option $1" ;;
     *) TARGET="$1" ;;
   esac
