@@ -108,6 +108,10 @@ Full details: [SECURITY.md](SECURITY.md).
 every type and language and checks the output (`sh -n`, YAML, `ruby -c`, compiles the Rust updater and runs its
 tests, typechecks the Swift updater, parses Python and Node). CI runs it on macOS and Linux.
 
+## Roadmap
+
+Coming next: Windows and Linux desktop apps, winget and Scoop, `.deb`/`.rpm`, Go and more languages. See [ROADMAP.md](ROADMAP.md).
+
 ## Contributing
 
 Bug reports, ideas and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
