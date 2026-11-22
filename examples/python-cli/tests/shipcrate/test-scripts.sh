@@ -8,7 +8,8 @@ W=$(mktemp -d); trap 'rm -rf "${W:?}"' EXIT
 fail() { echo "✗ $*"; exit 1; }
 
 # A scratch copy of the project, so nothing real is touched.
-mkdir -p "$W/p" && cp -R "$ROOT/scripts" "$ROOT/release.conf" "$W/p/" && cp "$ROOT/install.sh" "$W/p/"
+mkdir -p "$W/p" && cp -R "$ROOT/scripts" "$ROOT/release.conf" "$W/p/"
+[ -f "$ROOT/install.sh" ] && cp "$ROOT/install.sh" "$W/p/"
 cd "$W/p"
 printf '## [9.9.9]\n- a test change\n' > CHANGELOG.md
 
@@ -77,17 +78,26 @@ valid dist/r.json 'assert d["yanked"]==["9.9.8","9.9.7"], d["yanked"]' || fail "
 ROLLOUT=10 sh scripts/manifest.sh 9.9.9 >/dev/null && valid dist/latest.json 'assert d["rollout"]==10' || fail "manifest.sh ignored ROLLOUT"
 sh scripts/manifest.sh 9.9.9 >/dev/null
 
-# install.sh with a local manifest: good install, then a tampered download must be refused
+# install.sh with a local manifest: good install, then a tampered download must be refused.
+# Safety first: only ever run shipcrate's own installer (checked BEFORE running it; a project's own install.sh is
+# never executed), and only inside a sandbox: HOME, XDG folders and PATH point into the temp folder.
+OURS=0
+if [ -f install.sh ] && grep -q '^# shipcrate-installer: ' install.sh && grep -q 'unexpected download location' install.sh && grep -q 'MANIFEST_URL' install.sh; then OURS=1
+elif [ -f install.sh ]; then echo "• install.sh isn't shipcrate's (kept as yours): not run by these tests"; fi
+sandbox() {
+  mkdir -p "$W/home/.local/bin" "$W/home/.config" "$W/home/.cache" "$W/home/.local/share"
+  HOME="$W/home" XDG_CONFIG_HOME="$W/home/.config" XDG_CACHE_HOME="$W/home/.cache" XDG_DATA_HOME="$W/home/.local/share" \
+    XDG_BIN_HOME="$W/home/.local/bin" PATH="/usr/bin:/bin:/usr/sbin:/sbin" "$@"
+}
 # (only when this machine is one of the release's platforms)
-if [ "$TYPE" = cli ] && { [ "$T" = "$(host_target)" ] || [ "$T" = any ]; } && [ "${T#windows}" = "$T" ]; then
+if [ $OURS = 1 ] && [ "$TYPE" = cli ] && { [ "$T" = "$(host_target)" ] || [ "$T" = any ]; } && [ "${T#windows}" = "$T" ]; then
   sed "s#https://github.com/$REPO/releases/download/v9.9.9/#file://$W/p/dist/#" dist/latest.json > dist/local.json
-  MANIFEST_URL="file://$W/p/dist/local.json" INSTALL_DIR="$W/bin" sh install.sh >/dev/null || fail "install.sh failed on a good release"
+  sandbox env MANIFEST_URL="file://$W/p/dist/local.json" INSTALL_DIR="$W/bin" sh install.sh >/dev/null || fail "install.sh failed on a good release"
   [ "$("$W/bin/$BINARY")" = test-9.9.9 ] || fail "installed binary doesn't run"
   echo tampered >> "dist/$A"
-  if MANIFEST_URL="file://$W/p/dist/local.json" INSTALL_DIR="$W/bin2" sh install.sh >/dev/null 2>&1; then fail "install.sh accepted a tampered download"; fi
+  if sandbox env MANIFEST_URL="file://$W/p/dist/local.json" INSTALL_DIR="$W/bin2" sh install.sh >/dev/null 2>&1; then fail "install.sh accepted a tampered download"; fi
   [ ! -e "$W/bin2/$BINARY" ] || fail "tampered download was installed"
   # downloads from other hosts are refused with the default manifest
-  grep -q 'unexpected download location' install.sh || fail "install.sh lost its host check"
 fi
 # stats.sh: renders GitHub's download counts (from saved data here, no network)
 printf 'v1.1.0\tfalse\tx 1.1.0\tx-macos-arm64.tar.gz\t40\t2026-11-20T10:00:00Z\nv1.1.0\tfalse\tx 1.1.0\tlatest.json\t300\t2026-11-20T10:00:00Z\nv1.2.0-beta.1\ttrue\tx\tx-linux-x64.tar.gz\t7\t2026-11-21T10:00:00Z\nchannel\ttrue\tc\tbeta.json\t12\t2026-11-21T10:00:00Z\n' > "$W/s.tsv"
@@ -129,6 +139,7 @@ printf '# Changelog\n\n## [1.2.3] - 2026-01-01\n- old\n' > CHANGELOG.md
 git add -A && git commit -qm "chore: init" --no-verify && git tag v1.2.3
 c() { git commit -q --allow-empty --no-verify -m "$1"; }
 c "fix: crash on empty input"
+git tag v1   # a moving major tag (GitHub Action style) must not count as the last release
 [ "$(sh scripts/changelog.sh --version)" = 1.2.4 ] || fail "fix should be a patch"
 c "feat(cli): add --json output"; c "docs: typo"; c "fix(security): reject bad paths"
 [ "$(sh scripts/changelog.sh --version)" = 1.3.0 ] || fail "feat should be a minor"
@@ -138,5 +149,10 @@ c "feat!: new config format"
 [ "$(sh scripts/changelog.sh --version)" = 2.0.0 ] || fail "breaking should be a major"
 sh scripts/changelog.sh --write >/dev/null && grep -q '^## \[2.0.0\]' CHANGELOG.md && grep -q 'Breaking' CHANGELOG.md || fail "--write didn't add the section"
 [ "$(grep -n '^## \[' CHANGELOG.md | head -1 | cut -d'[' -f2 | cut -d']' -f1)" = 2.0.0 ] || fail "new section should be on top"
+# release.sh: one release at a time (a second one is refused while the first runs)
+printf '%s %s %s\n' "$$" "$(hostname 2>/dev/null || echo here)" "9.9.9" > "$(git rev-parse --git-dir)/shipcrate-release.lock"
+OUT=$(sh scripts/release.sh 9.9.10 --yes 2>&1 || true)
+printf '%s' "$OUT" | grep -q 'another release' || fail "release.sh didn't refuse a second release at the same time"
+rm -f "$(git rev-parse --git-dir)/shipcrate-release.lock"
 cd "$W/p"
 echo "release scripts and installer: ok"

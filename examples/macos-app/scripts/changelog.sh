@@ -9,7 +9,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 MODE="${1:-show}"
-LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -v -- '-' | head -1 || true)
+LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)   # skips v1, channel, betas
 BASE="${LAST#v}"; [ -n "$BASE" ] || BASE=0.0.0
 RANGE="${LAST:+$LAST..}HEAD"
 LOG=$(git log "$RANGE" --no-merges --format='%s%x1f%b%x1e' 2>/dev/null || true)

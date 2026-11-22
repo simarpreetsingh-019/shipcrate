@@ -10,9 +10,9 @@ set -u
 cd "$(dirname "$0")/.."
 . ./release.conf
 MODE="${1:-push}"; FAIL=0
-step() { printf "• %-46s" "$1"; shift; OUT=$(sh -c "$*" 2>&1); if [ $? -eq 0 ]; then echo "✔"; else echo "✗"; FAIL=$((FAIL+1)); echo "$OUT" | tail -15 | sed 's/^/    /'; fi; }
+step() { printf "• %-46s" "$1"; shift; OUT=$(sh -c "$*" 2>&1); if [ $? -eq 0 ]; then echo "✔"; else echo "✗"; FAIL=$((FAIL+1)); printf '%s\n' "$OUT" | tail -15 | sed 's/^/    /'; fi; }
 skip() { if [ "$MODE" = --release ]; then printf "• %-46s✗ required for a release: %s\n" "$1" "$2"; FAIL=$((FAIL+1)); else printf "• %-46s– skipped: %s\n" "$1" "$2"; fi; }
-fstep() { printf "• %-46s" "$1"; OUT=$( ($2) 2>&1); if [ $? -eq 0 ]; then echo "✔"; else echo "✗"; FAIL=$((FAIL+1)); echo "$OUT" | tail -15 | sed 's/^/    /'; fi; }
+fstep() { printf "• %-46s" "$1"; OUT=$( ($2) 2>&1); if [ $? -eq 0 ]; then echo "✔"; else echo "✗"; FAIL=$((FAIL+1)); printf '%s\n' "$OUT" | tail -15 | sed 's/^/    /'; fi; }
 has() { command -v "$1" >/dev/null 2>&1; }
 
 files() { if [ "$MODE" = "--quick" ]; then git diff --cached --name-only --diff-filter=ACM; else git ls-files; fi; }
@@ -26,8 +26,8 @@ scan_big() {
   files | while IFS= read -r f; do
     [ -f "$f" ] || continue
     case "$f" in *.gguf|*.safetensors|*.pt|*.pth|*.ckpt|*.onnx|*.mlmodel|.env|.env.*|*.p12|*.pfx|*.pem|*.key|*.keystore|*.mobileprovision|id_rsa*|id_ed25519*) echo "blocked file type: $f";; esac
-    s=$(wc -c < "$f" | tr -d ' '); [ "$s" -gt 5242880 ] && echo "over 5 MB: $f ($((s / 1048576)) MB)"
-  done | { OUT=$(cat); [ -z "$OUT" ] || { echo "$OUT"; exit 1; }; }
+    s=$(wc -c < "$f" | tr -d ' '); [ "$s" -gt 5242880 ] && echo "over 5 MB: $f ($((s / 1048576)) MB). Videos: ffmpeg -i in.mp4 -crf 24 out.mp4; or attach big files to a GitHub release instead"
+  done | { OUT=$(cat); [ -z "$OUT" ] || { printf '%s\n' "$OUT"; exit 1; }; }
 }
 # Guardrails for GitHub workflows: least privilege, no untrusted-code triggers, known actions only.
 lint_workflows() {
@@ -51,7 +51,10 @@ case "$KIT_LANG" in
     step "tests"                     cargo test --quiet ;;
   swift)
     if [ -f Package.swift ]; then step "build" swift build -q; else step "build" "$BUILD_CMD"; fi
-    if [ -d Tests ]; then step "tests" swift test -q; else skip "tests" "no Tests/ folder"; fi ;;
+    # `swift test` needs a SwiftPM package with a Tests/ folder (exact case: macOS disks ignore case, so tests/ would match -d)
+    if [ -f Package.swift ] && ls -1 | grep -qx Tests; then step "tests" swift test -q
+    elif [ -f tests/shipcrate/run.sh ]; then printf "• %-46s– no SwiftPM tests; shipcrate's tests run below\n" "tests"
+    else skip "tests" "no SwiftPM Tests/ folder"; fi ;;
   python)
     step "byte-compile"              python3 -m compileall -q -x '/\.venv/' .
     if [ -d tests ] && python3 -c 'import pytest' 2>/dev/null; then step "tests (pytest)" python3 -m pytest -q
@@ -67,17 +70,21 @@ fstep "no secrets in committed files" scan_secrets
 fstep "no key/model files or files > 5 MB" scan_big
 
 if [ "$MODE" != "--quick" ]; then
-  for f in $(git ls-files '*.sh' .githooks 2>/dev/null); do step "shell syntax: $f" sh -n "$f"; done
+  for f in $(git ls-files '*.sh' .githooks 2>/dev/null); do
+    case "$(head -1 "$f")" in *bash*) step "shell syntax (bash): $f" bash -n "$f" ;; *) step "shell syntax: $f" sh -n "$f" ;; esac
+  done
   fstep "workflow guardrails" lint_workflows
   fstep "release.conf holds no credentials" lint_conf
-  if has gitleaks; then step "secret history scan (gitleaks)" gitleaks git --no-banner --redact -q .; else printf "• %-46s– optional: brew install gitleaks\n" "secret history scan"; fi
+  if has gitleaks; then step "secret history scan (gitleaks)" gitleaks git --no-banner --redact -q .; else H="${XDG_CACHE_HOME:-$HOME/.cache}/shipcrate/hint-gitleaks"; [ -f "$H" ] || { printf "• %-46s– optional: brew install gitleaks (shown once)\n" "secret history scan"; mkdir -p "$(dirname "$H")" 2>/dev/null && touch "$H" 2>/dev/null; }; fi
   case "$KIT_LANG" in
     rust)
       step "lint (clippy correctness, suspicious)" cargo clippy --all-targets --quiet -- -D clippy::correctness -D clippy::suspicious
       if cargo audit --version >/dev/null 2>&1; then step "dependency advisories (cargo audit)" cargo audit --quiet
       else skip "dependency advisories" "cargo install cargo-audit --locked"; fi ;;
     swift)
-      if has swiftlint; then step "lint (swiftlint)" swiftlint --quiet; else skip "lint" "brew install swiftlint"; fi
+      if has swiftlint && swiftlint version >/dev/null 2>&1; then step "lint (swiftlint)" swiftlint --quiet
+      elif [ -z "${CI:-}" ]; then printf "• %-46s– skipped locally (needs swiftlint + full Xcode); runs in CI\n" "lint (swiftlint)"
+      else skip "lint" "brew install swiftlint"; fi
       if [ -f Package.resolved ]; then step "dependencies pinned (Package.resolved)" true; fi ;;
     python)
       if has ruff; then step "lint (ruff)" ruff check -q .; else skip "lint" "pipx install ruff"; fi

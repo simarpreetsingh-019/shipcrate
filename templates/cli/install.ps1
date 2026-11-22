@@ -1,3 +1,4 @@
+# shipcrate-installer: 1
 # {{PRODUCT}} installer for Windows (PowerShell 5+). Reads the release manifest, downloads the build for this PC,
 # checks its SHA-256, installs it to %LOCALAPPDATA%\Programs\{{BINARY}} and adds that folder to your user PATH.
 #

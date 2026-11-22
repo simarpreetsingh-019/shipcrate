@@ -1,4 +1,5 @@
 #!/bin/sh
+# shipcrate-installer: 1   (this marker lets shipcrate's tests know this is its installer; keep it if you edit)
 # HelloShip installer for macOS and Linux (Windows: install.ps1). Reads the release manifest, downloads the file
 # for this machine, checks it, installs it.
 #

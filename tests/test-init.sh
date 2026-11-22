@@ -49,5 +49,22 @@ sh bin/shipcrate init "$D" --yes --name s --type cli --lang rust --repo e/s >/de
 [ "$(cat "$D/CHANGELOG.md")" = keep ] && ok "existing files are not overwritten" || bad "overwrote an existing file"
 sh bin/shipcrate init "$D" --yes --name s --type cli --lang ruby --repo e/s >/dev/null 2>&1 && bad "accepted bad --lang" || ok "rejects unknown language"
 
+# Swift app without SwiftPM: a lower-case tests/ folder must not trigger `swift test` (macOS disks ignore case),
+# and bash scripts (process substitution) are checked with bash -n, not sh -n
+S="$WORK/swiftc"; mkdir -p "$S"
+sh bin/shipcrate init "$S" --yes --name sw --type app --lang swift --repo e/sw >/dev/null
+printf '#!/bin/bash\nmkdir -p build/sw.app\necho ok 2> >(cat >&2)\n' > "$S/build.sh"
+( cd "$S" && git init -q && git add -A && OUT=$(CI= sh scripts/check.sh 2>&1); printf '%s' "$OUT" > "$WORK/swout" )
+grep -q 'swift test' "$WORK/swout" && bad "ran swift test without Package.swift" || ok "no swift test without a SwiftPM package"
+grep -q 'shell syntax (bash): build.sh *✔' "$WORK/swout" && ok "bash scripts checked with bash -n" || bad "bash script not checked with bash -n: $(grep 'build.sh' "$WORK/swout")"
+
+# A project's own install.sh (kept by init) must never be run by the shipped tests (it once overwrote a real binary).
+H="$WORK/hostile"; mkdir -p "$H"
+sh bin/shipcrate init "$H" --yes --name hz --type cli --lang python --repo e/hz >/dev/null
+printf '#!/bin/sh\ntouch "%s/RAN"\nmkdir -p "$HOME/.local/bin" && touch "$HOME/.local/bin/hz-overwritten"\n' "$WORK" > "$H/install.sh"
+( cd "$H" && git init -q && sh tests/shipcrate/test-scripts.sh >/dev/null 2>&1 )
+[ ! -e "$WORK/RAN" ] && [ ! -e "$HOME/.local/bin/hz-overwritten" ] && ok "a project's own install.sh is never run by the tests" || bad "the tests ran the project's own install.sh!"
+rm -f "$HOME/.local/bin/hz-overwritten"
+
 echo; [ $FAIL -eq 0 ] && echo "All init tests passed." || echo "$FAIL init test(s) failed."
 exit $FAIL

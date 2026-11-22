@@ -27,6 +27,25 @@ Ideas from GoReleaser, dist (cargo-dist), Sparkle, Velopack, the Tauri updater a
 - [ ] **Brand theming** for the update UI: Swift `UpdaterTheme` (colors, radius, icons, wording) and a CLI message
       template with an optional color that respects `NO_COLOR`.
 
+## From real use (msh, Thermo)
+
+- [ ] `shipcrate init --diff` and a merge choice for files that already exist; `--existing` mode that proposes keep/replace/merge per file
+- [ ] Gate and CI runner follow TARGETS: macOS-only projects run on macOS (doctor flags macOS-only code on ubuntu)
+- [ ] Split the release gate: CI runs push mode, local release runs `--release` plus project steps that need local resources (`RELEASE_LOCAL_STEPS`)
+- [ ] Non-interactive `status(current)` in the updaters for GUIs, tray apps and web UIs (latest, offered, yanked, security, announcement)
+- [ ] Post-upgrade health check: optional `verify_cmd` (e.g. `<bin> --version`), automatic rollback on failure
+- [ ] Docs for projects with their own updater: the `#[path]` wrapper pattern and migrating old backups to `.NAME.old`
+- [ ] Templates: Homebrew `desc` from Cargo.toml/package.json/pyproject; no "in none" text when there's no tap
+- [ ] install.sh: platform guard from TARGETS and a `POST_INSTALL_HINT` from release.conf
+- [ ] The gate puts the freshly built binary first on PATH for steps that call the tool by name
+- [ ] `init --adopt`: wrap a repo's existing release script and updater instead of adding a second copy (Thermo)
+- [ ] Build presets: swiftc (no SwiftPM), SwiftPM, Xcode project, Go, Rust, Node
+- [ ] `doctor` lists missing tools with install commands (gitleaks, swiftlint, gh auth, Xcode vs Command Line Tools)
+- [ ] Optional notarization step, plus a guide for the "can't verify" warning on unsigned zips
+- [ ] `release --dry-run` shows the release notes and the latest.json diff side by side
+- [ ] Launch post templates (Reddit, HN, X, awesome lists)
+- [ ] CI fixture repos on a macOS runner: a small swiftc app and a bash-heavy repo
+
 ## Next
 
 - [ ] **Windows and Linux desktop apps.** Support GUI apps beyond the macOS `.app`: Tauri, Electron, .NET and

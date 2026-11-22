@@ -32,12 +32,23 @@ die() { say "✗ $*"; exit 1; }
 # In a dry run, guardrail failures are reported but don't stop the preview.
 guard() { if [ $DRY = 1 ]; then say "• (dry run) would stop: $*"; else die "$*"; fi; }
 
+# One release at a time from this folder (two terminals or agents releasing at once would race).
+if [ $DRY = 0 ]; then
+  LOCK="$(git rev-parse --git-dir 2>/dev/null || echo .)/shipcrate-release.lock"; HOST=$(hostname 2>/dev/null || echo here)
+  if [ -f "$LOCK" ]; then
+    read -r OPID OHOST OVER < "$LOCK" || true
+    if [ "$OHOST" = "$HOST" ] && kill -0 "$OPID" 2>/dev/null; then die "another release ($OVER, pid $OPID) is running from this folder"; fi
+    say "• removing a stale release lock ($OVER, pid $OPID on $OHOST)"
+  fi
+  printf '%s %s %s\n' "$$" "$HOST" "$V" > "$LOCK"; trap 'rm -f "$LOCK"' EXIT; trap 'rm -f "$LOCK"; exit 130' INT TERM
+fi
+
 say "→ Guardrails"
 echo "$V" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' || die "version must look like 1.2.3 or 1.2.3-beta.1"
 command -v gh >/dev/null || die "install the GitHub CLI (brew install gh / winget install GitHub.cli) and run gh auth login"
 gh auth status >/dev/null 2>&1 || guard "gh isn't signed in: run gh auth login"
 git rev-parse -q --verify "refs/tags/v$V" >/dev/null && die "tag v$V already exists"
-LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)
+LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' | head -1 || true)   # skips moving tags like v1
 if [ -n "$LAST" ]; then
   NEWEST=$(printf '%s\n%s\n' "${LAST#v}" "$V" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
   [ "$NEWEST" = "$V" ] && [ "${LAST#v}" != "$V" ] || [ $PRE = 1 ] || die "$V isn't newer than the last release ($LAST)"

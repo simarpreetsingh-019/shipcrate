@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Swift projects without SwiftPM: a lower-case `tests/` folder no longer triggers `swift test` (macOS disks ignore case).
+- Bash scripts are syntax-checked with `bash -n` (by shebang), so process substitution no longer fails the gate.
+- `changelog.sh` and `release.sh` ignore moving tags like `v1` and the `channel` release when finding the last version.
+- `release.sh` takes a lock (`.git/shipcrate-release.lock`, pid + host) so two releases can't run at once from one folder.
+- SwiftLint is skipped locally when it isn't usable (it needs full Xcode) and runs in CI; the gitleaks hint shows once.
+- The 5 MB file check suggests how to shrink videos or attach big files to a release; captured output is printed with `printf`.
+- **Safety:** the shipped tests (`tests/shipcrate/`) could run a project's *own* `install.sh` (which `init` keeps), and in one project that overwrote a real installed binary. The tests now run only shipcrate's installer (identified by a marker, checked before running it), and only inside a sandbox (temp HOME, XDG folders and PATH). Regression test added.
+
 ## [0.4.0] - 2026-11-22
 
 ### Added
