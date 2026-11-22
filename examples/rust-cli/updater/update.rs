@@ -533,19 +533,37 @@ pub fn checks_allowed() -> bool {
 
 /// Numeric dotted comparison: 1.10.0 > 1.9.3; a leading "v" is ignored; 1.0.0 > 1.0.0-beta.
 pub fn is_newer(a: &str, b: &str) -> bool {
-    let parse = |s: &str| -> (Vec<u64>, bool) {
+    // Semantic-versioning order: 1.10.0 > 1.9.3; 1.0.0 > 1.0.0-rc.1 > 1.0.0-beta.2 > 1.0.0-beta.1; leading "v" ignored.
+    let split = |s: &str| -> (Vec<u64>, Vec<String>) {
         let s = s.trim().trim_start_matches('v');
-        let (core, pre) = match s.split_once('-') { Some((c, _)) => (c, true), None => (s, false) };
-        (core.split('.').map(|p| p.parse().unwrap_or(0)).collect(), pre)
+        let s = s.split('+').next().unwrap_or("");
+        let (core, pre) = match s.split_once('-') { Some((c, p)) => (c, p), None => (s, "") };
+        (core.split('.').map(|p| p.parse().unwrap_or(0)).collect(),
+         if pre.is_empty() { Vec::new() } else { pre.split('.').map(String::from).collect() })
     };
-    let ((x, xp), (y, yp)) = (parse(a), parse(b));
+    let ((x, xp), (y, yp)) = (split(a), split(b));
     for i in 0..x.len().max(y.len()) {
         let (p, q) = (*x.get(i).unwrap_or(&0), *y.get(i).unwrap_or(&0));
         if p != q {
             return p > q;
         }
     }
-    yp && !xp
+    if xp.is_empty() || yp.is_empty() {
+        return xp.is_empty() && !yp.is_empty(); // a release beats its pre-releases
+    }
+    for i in 0..xp.len().max(yp.len()) {
+        let (Some(p), Some(q)) = (xp.get(i), yp.get(i)) else { return xp.len() > yp.len() };
+        let ord = match (p.parse::<u64>(), q.parse::<u64>()) {
+            (Ok(m), Ok(n)) => m.cmp(&n),
+            (Ok(_), Err(_)) => std::cmp::Ordering::Less, // numbers sort before words
+            (Err(_), Ok(_)) => std::cmp::Ordering::Greater,
+            _ => p.cmp(q),
+        };
+        if ord != std::cmp::Ordering::Equal {
+            return ord == std::cmp::Ordering::Greater;
+        }
+    }
+    false
 }
 
 /// This machine's target key in latest.json, e.g. "macos-arm64", "linux-x64", "windows-x64".
@@ -849,6 +867,12 @@ mod tests {
         assert!(!is_newer("1.0.0", "1.0.0"));
         assert!(!is_newer("1.0.0-beta", "1.0.0"));
         assert!(!is_newer("garbage", "0.0.1"));
+        assert!(is_newer("1.10.0-beta.2", "1.10.0-beta.1"));
+        assert!(is_newer("1.10.0-beta.10", "1.10.0-beta.9"));
+        assert!(is_newer("1.10.0-rc.1", "1.10.0-beta.3"));
+        assert!(is_newer("1.10.0", "1.10.0-rc.1"));
+        assert!(is_newer("1.0.0-beta.1", "1.0.0-beta"));
+        assert!(!is_newer("1.10.0-beta.1", "1.10.0-beta.1"));
     }
 
     #[test]

@@ -132,14 +132,30 @@ final class Updater: ObservableObject {
     }
 
     /// Numeric dotted comparison: 1.10.0 > 1.9.3. Pre-release suffixes ("-beta") are ignored.
+    /// Semantic-versioning order: 1.10.0 > 1.9.3; 1.0.0 > 1.0.0-rc.1 > 1.0.0-beta.2 > 1.0.0-beta.1.
     static func isNewer(_ a: String, than b: String) -> Bool {
-        let parse = { (s: String) in s.split(separator: "-")[0].split(separator: ".").map { Int($0) ?? 0 } }
-        let x = parse(a), y = parse(b)
+        func parse(_ s: String) -> ([Int], [Substring]) {
+            let s = s.hasPrefix("v") ? String(s.dropFirst()) : s
+            let main = s.split(separator: "+", maxSplits: 1).first.map(String.init) ?? s
+            let parts = main.split(separator: "-", maxSplits: 1)
+            let core = (parts.first ?? "").split(separator: ".").map { Int($0) ?? 0 }
+            return (core, parts.count > 1 ? parts[1].split(separator: ".") : [])
+        }
+        let (x, xp) = parse(a), (y, yp) = parse(b)
         for i in 0..<max(x.count, y.count) {
             let p = i < x.count ? x[i] : 0, q = i < y.count ? y[i] : 0
             if p != q { return p > q }
         }
-        return false
+        if xp.isEmpty || yp.isEmpty { return xp.isEmpty && !yp.isEmpty }   // a release beats its pre-releases
+        for (p, q) in zip(xp, yp) where p != q {
+            switch (Int(p), Int(q)) {
+            case let (m?, n?): return m > n
+            case (_?, nil): return false      // numbers sort before words
+            case (nil, _?): return true
+            default: return p > q
+            }
+        }
+        return xp.count > yp.count
     }
 
     func request(_ path: String) -> URLRequest {

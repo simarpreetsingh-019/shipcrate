@@ -7,6 +7,9 @@ func expect(_ ok: Bool, _ what: String) { if ok { print("  ✔ \(what)") } else 
 expect(Updater.isNewer("1.10.0", than: "1.9.9"), "1.10.0 > 1.9.9")
 expect(!Updater.isNewer("1.0.0", than: "1.0.0"), "same version isn't newer")
 expect(Updater.isNewer("2.0", than: "1.99.99"), "2.0 > 1.99.99")
+for (a, b) in [("1.10.0-beta.2", "1.10.0-beta.1"), ("1.10.0-beta.10", "1.10.0-beta.9"), ("1.10.0-rc.1", "1.10.0-beta.3"), ("1.10.0", "1.10.0-rc.1"), ("1.0.0-beta.1", "1.0.0-beta")] {
+    expect(Updater.isNewer(a, than: b) && !Updater.isNewer(b, than: a), "\(a) > \(b)")
+}
 
 func manifest(_ url: String, _ sha: String, security: Bool = false) -> Data {
     let j: [String: Any] = ["version": "9.9.9", "page": "https://github.com/x/y/releases/tag/v9.9.9", "security": security, "notes": "n",

@@ -54,11 +54,9 @@ echo "$V" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' || die "versio
 command -v gh >/dev/null || guard "install the GitHub CLI (brew install gh / winget install GitHub.cli) and run gh auth login"
 gh auth status >/dev/null 2>&1 || guard "gh isn't signed in: run gh auth login"
 git rev-parse -q --verify "refs/tags/v$V" >/dev/null && die "tag v$V already exists"
-LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' | head -1 || true)   # skips moving tags like v1
-if [ -n "$LAST" ]; then
-  NEWEST=$(printf '%s\n%s\n' "${LAST#v}" "$V" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
-  [ "$NEWEST" = "$V" ] && [ "${LAST#v}" != "$V" ] || [ $PRE = 1 ] || die "$V isn't newer than the last release ($LAST)"
-fi
+LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' | while read -r t; do echo "$t"; done | {
+  best=""; while read -r t; do if [ -z "$best" ] || ver_gt "$t" "$best"; then best=$t; fi; done; echo "$best"; })   # skips moving tags like v1
+if [ -n "$LAST" ] && ! ver_gt "$V" "${LAST#v}"; then die "$V isn't newer than the last release ($LAST)"; fi
 [ -z "$(git status --porcelain)" ] || guard "commit or stash your changes first"
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 DEFAULT=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##'); DEFAULT=${DEFAULT:-main}

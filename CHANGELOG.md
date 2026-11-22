@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed (important)
+- **Pre-release ordering in all 4 updaters:** `1.10.0-beta.2` was treated as equal to `1.10.0-beta.1`, so beta testers couldn't get the next beta. In Swift, `1.10.0` was also equal to `1.10.0-beta.1`, so beta testers never got the final release. Updaters now use semantic-versioning order (beta.1 < beta.2 < beta.10 < rc.1 < release). Found by the new update-path test on Thermo.
+- `release.sh` refused `1.10.0` after `1.10.0-beta.1` ("isn't newer"). Versions are now compared with `ver_gt` in `lib.sh`.
+
 ### Added
 - **Safe updates for live apps (6 rules):** `shipcrate sync` (shipcrate releases only, records `SHIPCRATE_VERSION`); `release.sh` asks for a beta first, a passing `scripts/update-path-test.sh` (the last stable copy updates itself to the new build, locally) and a timed rollout (`SAFE_ROLLOUT_DAYS`, default 7) when shipcrate's code or the updater changed; it refuses to drop download names the last release had. Escape hatches: `--skip-beta`, `--skip-update-test`, `--full-rollout`, `--allow-renamed-assets`.
 - `shipcrate sync` never overwrites your edits: init and sync record checksums in `.shipcrate/files.sha256`; edited files are shown as a diff and only replaced if you say so (`--yes` keeps them).

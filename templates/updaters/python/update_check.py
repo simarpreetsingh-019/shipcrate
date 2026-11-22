@@ -34,15 +34,27 @@ def checks_allowed():
 
 
 def is_newer(a, b):
-    """1.10.0 > 1.9.3; a leading v is ignored; 1.0.0 > 1.0.0-beta."""
+    """Semantic-versioning order: 1.10.0 > 1.9.3; 1.0.0 > 1.0.0-rc.1 > 1.0.0-beta.2 > 1.0.0-beta.1; v ignored."""
     def parse(s):
-        s = s.strip().lstrip("v")
+        s = s.strip().lstrip("v").split("+")[0]
         core, _, pre = s.partition("-")
-        return [int(p) if p.isdigit() else 0 for p in core.split(".")], bool(pre)
+        return [int(p) if p.isdigit() else 0 for p in core.split(".")], (pre.split(".") if pre else [])
     (x, xp), (y, yp) = parse(a), parse(b)
     n = max(len(x), len(y))
     x, y = x + [0] * (n - len(x)), y + [0] * (n - len(y))
-    return x > y if x != y else (yp and not xp)
+    if x != y:
+        return x > y
+    if not xp or not yp:
+        return bool(yp) and not xp          # a release beats its pre-releases
+    for p, q in zip(xp, yp):
+        if p == q:
+            continue
+        if p.isdigit() and q.isdigit():
+            return int(p) > int(q)
+        if p.isdigit() != q.isdigit():
+            return not p.isdigit()          # numbers sort before words
+        return p > q
+    return len(xp) > len(yp)
 
 
 def platform_key():

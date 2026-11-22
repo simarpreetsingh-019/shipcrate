@@ -60,3 +60,24 @@ manifest_set() {
 
 # Download a release's latest.json into DIR (prints the path).
 fetch_manifest() { gh release download "$1" --repo "$REPO" --pattern latest.json --dir "$2" --clobber >/dev/null && echo "$2/latest.json"; }
+
+# ver_gt A B: true if version A is newer than B (semantic versioning: 1.10.0 > 1.10.0-rc.1 > 1.10.0-beta.2 > 1.10.0-beta.1).
+ver_gt() {
+  awk -v a="${1#v}" -v b="${2#v}" 'function isnum(s) { return s ~ /^[0-9]+$/ }
+  BEGIN {
+    sub(/\+.*/, "", a); sub(/\+.*/, "", b)
+    ca = a; pa = ""; if ((i = index(a, "-")) > 0) { ca = substr(a, 1, i - 1); pa = substr(a, i + 1) }
+    cb = b; pb = ""; if ((i = index(b, "-")) > 0) { cb = substr(b, 1, i - 1); pb = substr(b, i + 1) }
+    n = split(ca, x, "."); m = split(cb, y, "."); k = n > m ? n : m
+    for (i = 1; i <= k; i++) { p = (i <= n ? x[i] + 0 : 0); q = (i <= m ? y[i] + 0 : 0); if (p != q) exit !(p > q) }
+    if (pa == "" || pb == "") exit !(pa == "" && pb != "")
+    n = split(pa, x, "."); m = split(pb, y, "."); k = n < m ? n : m
+    for (i = 1; i <= k; i++) {
+      if (x[i] == y[i]) continue
+      if (isnum(x[i]) && isnum(y[i])) exit !(x[i] + 0 > y[i] + 0)
+      if (isnum(x[i]) != isnum(y[i])) exit !(!isnum(x[i]))
+      exit !(x[i] > y[i])
+    }
+    exit !(n > m)
+  }'
+}

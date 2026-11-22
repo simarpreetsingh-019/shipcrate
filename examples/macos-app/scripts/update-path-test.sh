@@ -23,7 +23,7 @@ A=$(asset_for "$T"); ENVP=$(printf '%s' "$TOKEN" | tr 'a-z.-' 'A-Z__')
 W=$(mktemp -d); PID=""
 cleanup() { [ -n "$PID" ] && kill "$PID" 2>/dev/null; rm -rf "${W:?}"; }
 trap cleanup EXIT INT TERM
-echo "→ Update path: $FROM (from GitHub) → $NEW (built here, served locally)"
+echo "→ Update path: $FROM ($([ -n "$OLDF" ] && echo "file $(basename "$OLDF")" || echo "from GitHub")) → $NEW (built here, served locally)"
 
 # 1. the old copy, exactly as users have it
 mkdir -p "$W/old"

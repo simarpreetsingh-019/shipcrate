@@ -19,6 +19,9 @@ test("versions", () => {
   assert.ok(u.isNewer("1.0.0", "1.0.0-beta"));
   assert.ok(!u.isNewer("1.0.0", "1.0.0"));
   assert.ok(!u.isNewer("1.0.0-rc.1", "1.0.0"));
+  for (const [a, b] of [["1.10.0-beta.2", "1.10.0-beta.1"], ["1.10.0-beta.10", "1.10.0-beta.9"], ["1.10.0-rc.1", "1.10.0-beta.3"], ["1.10.0", "1.10.0-rc.1"], ["1.0.0-beta.1", "1.0.0-beta"]]) {
+    assert.ok(u.isNewer(a, b), `${a} > ${b}`); assert.ok(!u.isNewer(b, a), `${b} < ${a}`);
+  }
 });
 
 test("manifest: only this project's releases, valid checksums", () => {

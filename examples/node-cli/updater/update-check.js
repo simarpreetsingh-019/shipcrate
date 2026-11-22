@@ -36,13 +36,26 @@ function checksAllowed() {
 
 // 1.10.0 > 1.9.3; a leading v is ignored; 1.0.0 > 1.0.0-beta.
 function isNewer(a, b) {
-  const parse = (s) => { const [core, pre] = String(s).trim().replace(/^v/, "").split(/-(.*)/); return [core.split(".").map((p) => parseInt(p, 10) || 0), Boolean(pre)]; };
+  // Semantic-versioning order: 1.10.0 > 1.9.3; 1.0.0 > 1.0.0-rc.1 > 1.0.0-beta.2 > 1.0.0-beta.1; leading v ignored.
+  const parse = (s) => {
+    const [core, pre = ""] = String(s).trim().replace(/^v/, "").split("+")[0].split(/-(.*)/);
+    return [core.split(".").map((p) => parseInt(p, 10) || 0), pre ? pre.split(".") : []];
+  };
   const [x, xp] = parse(a), [y, yp] = parse(b);
   for (let i = 0; i < Math.max(x.length, y.length); i++) {
     const p = x[i] || 0, q = y[i] || 0;
     if (p !== q) return p > q;
   }
-  return yp && !xp;
+  if (!xp.length || !yp.length) return yp.length > 0 && xp.length === 0;
+  const num = (s) => /^\d+$/.test(s);
+  for (let i = 0; i < Math.min(xp.length, yp.length); i++) {
+    const p = xp[i], q = yp[i];
+    if (p === q) continue;
+    if (num(p) && num(q)) return Number(p) > Number(q);
+    if (num(p) !== num(q)) return !num(p);
+    return p > q;
+  }
+  return xp.length > yp.length;
 }
 
 function platformKey() {

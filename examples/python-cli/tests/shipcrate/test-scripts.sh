@@ -17,6 +17,10 @@ printf '## [9.9.9]\n- a test change\n' > CHANGELOG.md
 for t in $TARGETS; do a=$(asset_for "$t"); case "$a" in *"{target}"*|"") fail "asset_for $t gave '$a'" ;; esac; done
 case "$(asset_for windows-x64)" in *.zip) ;; *) [ "$TYPE" = app ] || fail "windows assets should be .zip" ;; esac
 [ "$(printf 'a"b\\c\nd' | json_string)" = '"a\"b\\c\nd"' ] || fail "json_string escaping"
+for p in "1.10.0 1.10.0-beta.1" "1.10.0-beta.2 1.10.0-beta.1" "1.10.0-beta.10 1.10.0-beta.9" "1.10.0-rc.1 1.10.0-beta.3" "2.0.0 1.99.99"; do
+  set -- $p; ver_gt "$1" "$2" || fail "ver_gt: $1 should be newer than $2"; ! ver_gt "$2" "$1" || fail "ver_gt: $2 should not be newer than $1"
+done
+! ver_gt 1.0.0 1.0.0 || fail "ver_gt: equal versions"
 
 # a fake build for this machine (or the single target)
 set -- $TARGETS; T=$1; for t in $TARGETS; do [ "$t" = "$(host_target)" ] && T=$t; done

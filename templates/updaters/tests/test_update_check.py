@@ -18,6 +18,10 @@ class Versions(unittest.TestCase):
         self.assertTrue(u.is_newer("1.0.0", "1.0.0-beta"))
         self.assertFalse(u.is_newer("1.0.0", "1.0.0"))
         self.assertFalse(u.is_newer("1.0.0-rc.1", "1.0.0"))
+        for a, b in (("1.10.0-beta.2", "1.10.0-beta.1"), ("1.10.0-beta.10", "1.10.0-beta.9"), ("1.10.0-rc.1", "1.10.0-beta.3"),
+                     ("1.10.0", "1.10.0-rc.1"), ("1.0.0-beta.1", "1.0.0-beta")):
+            self.assertTrue(u.is_newer(a, b), (a, b))
+            self.assertFalse(u.is_newer(b, a), (b, a))
 
 
 class Manifest(unittest.TestCase):
