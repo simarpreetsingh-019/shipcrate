@@ -3,8 +3,8 @@
 class Shipcrate < Formula
   desc "Release and update tooling in one command: gate, checksums, provenance, Homebrew, updates"
   homepage "https://simarpreetsingh-019.github.io/shipcrate/"
-  url "https://github.com/simarpreetsingh-019/shipcrate/archive/refs/tags/v0.4.0.tar.gz"
-  sha256 "e3879ece8a75ca756f2023cdf5fcb1d291f00a0d5290a0e3443c777971f1d115"
+  url "https://github.com/simarpreetsingh-019/shipcrate/archive/refs/tags/v0.5.0.tar.gz"
+  sha256 "d8793b6aa1019e00cb05a367feef00e9380a8edc30dee4e28e46934ae9d11ae5"
   license "MIT"
 
   depends_on "gh"
