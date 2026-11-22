@@ -18,6 +18,7 @@ for t in rust-cli python-cli node-cli macos-app; do
   left=$(cd "$D" && grep -rIl -i -E 'hello-?ship|hello-py|hello_py|hello-node|you/' --exclude-dir=.git --exclude-dir=target . 2>/dev/null | head -5)
   [ -z "$left" ] && ok "no example names left" || bad "example names left in: $left"
   grep -q "^REPO='acme/widget'" "$D/release.conf" && ok "release.conf points at acme/widget" || bad "release.conf repo wrong"
+  ( cd "$D" && sh "$OLDPWD/bin/shipcrate" sync --allow-dev --dry-run 2>&1 ) | grep -q 'has your own edits' && bad "sync thinks setup.sh's renames are your edits" || ok "sync sees shipcrate's files as untouched after setup"
   case $t in
     rust-cli)   has cargo && { ( cd "$D" && cargo build -q 2>&1 && ./target/debug/widget --version ) | grep -q 'widget 1.0.0' && ok "builds and runs as widget" || bad "rust build/run"; } ;;
     python-cli) ( cd "$D/src" && python3 -m widget --version ) | grep -q 'widget 1.0.0' && ok "runs as widget" || bad "python run"

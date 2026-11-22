@@ -51,6 +51,12 @@ while IFS= read -r p; do
   [ "$b" != "$nb" ] && [ -e "$p" ] && mv "$p" "$(dirname "$p")/$nb" || true
 done
 
+# setup renamed text inside shipcrate's files: refresh the checksums `shipcrate sync` uses to spot your own edits
+if [ -f .shipcrate/files.sha256 ]; then
+  awk '{print $2}' .shipcrate/files.sha256 | while IFS= read -r f; do
+    [ -f "$f" ] && printf '%s  %s\n' "$( (shasum -a 256 "$f" 2>/dev/null || sha256sum "$f") | cut -d' ' -f1)" "$f"
+  done > .shipcrate/files.new && mv .shipcrate/files.new .shipcrate/files.sha256
+fi
 [ -d .git ] && sh scripts/install-hooks.sh >/dev/null && echo "✓ git hooks on (quick checks on commit, full checks on push)"
 if [ $YES = 0 ] && [ -t 0 ]; then
   printf 'Turn on signed updates now (recommended; you can do it later with sh scripts/keygen.sh)? [Y/n] '
