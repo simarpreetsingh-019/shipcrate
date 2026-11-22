@@ -482,7 +482,7 @@ pub fn sha512(data: &[u8]) -> Option<[u8; 64]> {
     let run = |cmd: &str, pre: &[&str], post: &[&str]| {
         Command::new(cmd).args(pre).arg(&path).args(post).output().ok().filter(|o| o.status.success()).and_then(|o| String::from_utf8(o.stdout).ok())
     };
-    let hex = run("shasum", &["-a", "512"], &[]).or_else(|| run("sha512sum", &[], &[])).and_then(|s| s.split_whitespace().next().map(String::from))
+    let hex = run("shasum", &["-a", "512"], &[]).or_else(|| run("sha512sum", &[], &[])).and_then(|s| s.split_whitespace().next().map(|h| h.trim_start_matches('\\').to_string())) // GNU tools prefix "\" when the path has backslashes (Windows)
         .or_else(|| run("certutil", &["-hashfile"], &["SHA512"]).and_then(|s| s.lines().nth(1).map(|l| l.replace(' ', ""))));
     let _ = fs::remove_file(&path);
     let hex = hex?;

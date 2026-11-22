@@ -25,7 +25,10 @@ if grep -q '^PUBLIC_KEY=' release.conf; then sed "s#^PUBLIC_KEY=.*#PUBLIC_KEY='$
 else printf "\n# Signed updates (scripts/keygen.sh): apps and CLIs only trust a latest.json signed by this key.\nPUBLIC_KEY='%s'\n" "$PUB" >> release.conf; fi
 # every updater copy in the project
 for f in $(grep -rls 'shipcrate:public-key' --include='*.rs' --include='*.py' --include='*.js' --include='*.ts' --include='*.swift' . 2>/dev/null | grep -v node_modules); do
-  sed -E "/shipcrate:public-key/s/\"[A-Za-z0-9+\\/=]*\"/\"$PUB\"/" "$f" > "$f.new" && mv "$f.new" "$f"; echo "✓ public key → $f"
+  # "|" as the sed delimiter: base64 keys contain "/" and "+"
+  sed -E "/shipcrate:public-key/s|\"[A-Za-z0-9+/=]*\"|\"$PUB\"|" "$f" > "$f.new" && mv "$f.new" "$f"
+  grep -q "\"$PUB\".*shipcrate:public-key" "$f" || { echo "✗ couldn't write the public key into $f" >&2; exit 1; }
+  echo "✓ public key → $f"
 done
 echo "✓ PUBLIC_KEY in release.conf: $PUB"
 case " $* " in *" --no-secret "*) NOSECRET=1 ;; *) NOSECRET=0 ;; esac

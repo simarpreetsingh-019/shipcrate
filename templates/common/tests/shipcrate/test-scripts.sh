@@ -98,6 +98,23 @@ printf '%s' "$OUT" | grep -q 'beta channel checks (beta.json): 12' || fail "stat
 printf 'date,tag,file,count\n2026-11-20,v1.1.0,x-macos-arm64.tar.gz,10\n2026-11-21,v1.1.0,x-macos-arm64.tar.gz,25\n' > "$W/s.csv"
 SHIPCRATE_STATS_TSV="$W/s.tsv" sh scripts/stats.sh --history "$W/s.csv" | grep -q '2026-11-21 *v1.1.0 *25 *+15' || fail "stats --history: per-day growth wrong"
 
+# keygen.sh + sign.sh: keys with "/" and "+" land in release.conf and every updater file; signatures verify
+if openssl version 2>/dev/null | grep -q '^OpenSSL [3-9]' || command -v node >/dev/null 2>&1; then
+  K="$W/k"; mkdir -p "$K" && cp -R "$ROOT/scripts" "$ROOT/release.conf" "$K/" && mkdir -p "$K/updater"
+  printf 'const KEY: &str = ""; // shipcrate:public-key\n' > "$K/updater/x.rs"
+  i=0; slash=0
+  while [ $i -lt 40 ] && [ $slash = 0 ]; do
+    i=$((i+1)); rm -rf "$W/kcfg"
+    ( cd "$K" && XDG_CONFIG_HOME="$W/kcfg" sh scripts/keygen.sh --no-secret >/dev/null ) || fail "keygen failed"
+    PUBK=$(sed -n "s/^PUBLIC_KEY='\(.*\)'/\1/p" "$K/release.conf")
+    grep -q "\"$PUBK\"" "$K/updater/x.rs" || fail "keygen didn't write the key ($PUBK) into the updater"
+    case "$PUBK" in */*|*+*) slash=1 ;; esac
+  done
+  printf '{"version":"1.0.0"}\n' > "$K/m.json"
+  ( cd "$K" && XDG_CONFIG_HOME="$W/kcfg" sh scripts/sign.sh m.json >/dev/null ) || fail "sign.sh failed"
+  [ -s "$K/m.json.sig" ] || fail "no signature written"
+fi
+
 # changelog.sh: version and section from conventional commits, in a throwaway git repo
 G="$W/g"; mkdir -p "$G" && cp -R "$ROOT/scripts" "$ROOT/release.conf" "$G/" && cd "$G"
 git init -q && git config user.email t@example.invalid && git config user.name t && git config commit.gpgsign false
