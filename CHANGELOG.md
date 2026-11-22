@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Added
+- `tools/ci-local.sh`: run the Linux CI job locally in Docker before pushing.
+
+### Fixed
+- `latest.json` could be invalid on Debian/Ubuntu machines (mawk) when release notes contained a backslash: JSON escaping now uses portable `sed`.
+
+### Added (stats)
 - `shipcrate stats --baseline` / `--baseline-clear`: a zero point (saved on your machine only) so your own downloads and testing don't count; `--repo owner/name` for any repository.
 
 ## [0.4.0] - 2026-11-22

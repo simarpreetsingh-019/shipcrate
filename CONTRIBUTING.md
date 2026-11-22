@@ -18,6 +18,9 @@ sh scripts/install-hooks.sh     # pre-commit: quick gate · pre-push: full gate
 sh scripts/check.sh             # shell syntax, secret scan, workflow guardrails, init + shipped tests
 ```
 
+Before pushing, also run the Linux CI job on your machine: `sh tools/ci-local.sh` (Docker). It catches GNU and
+mawk differences a Mac-only check misses. Windows-only code paths still need CI.
+
 The full gate needs `ruby` (YAML and Homebrew syntax). It also uses `rustc`, `swiftc`, `node`, `python3` and `pwsh`
 where they're installed; checks for a missing tool are skipped locally, and CI runs them all on macOS, Linux and Windows.
 

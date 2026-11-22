@@ -34,7 +34,9 @@ sha256_of() {
 
 # JSON string literal of stdin (escapes \ " control characters, joins lines with \n).
 json_string() {
-  awk 'BEGIN{ORS=""; print "\""} {gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); gsub(/\t/,"\\t"); gsub(/\r/,""); if (NR>1) print "\\n"; print} END{print "\""}'
+  # sed for the escaping (awk implementations disagree about backslashes in gsub; mawk on Debian/Ubuntu differs)
+  TAB=$(printf '\t'); CR=$(printf '\r')
+  sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e "s/$TAB/\\\\t/g" -e "s/$CR//g" | awk 'BEGIN{ORS=""; print "\""} { if (NR>1) print "\\n"; print } END{print "\""}'
 }
 
 # Set (or with an empty value, remove) a top-level key in a manifest written by manifest.sh.
