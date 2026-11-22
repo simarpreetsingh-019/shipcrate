@@ -154,5 +154,16 @@ printf '%s %s %s\n' "$$" "$(hostname 2>/dev/null || echo here)" "9.9.9" > "$(git
 OUT=$(sh scripts/release.sh 9.9.10 --yes 2>&1 || true)
 printf '%s' "$OUT" | grep -q 'another release' || fail "release.sh didn't refuse a second release at the same time"
 rm -f "$(git rev-parse --git-dir)/shipcrate-release.lock"
+# Safety rules: when shipcrate's code changed since the last stable, a stable release needs a beta first,
+# a passing update-path test, and gets a timed rollout
+sed "s/^SHIPCRATE_VERSION=.*/SHIPCRATE_VERSION='99.0.0'/" release.conf > release.conf.new && mv release.conf.new release.conf
+grep -q '^SHIPCRATE_VERSION=' release.conf || printf "SHIPCRATE_VERSION='99.0.0'\n" >> release.conf
+git add -A && git commit -qm "chore: bump shipcrate" --no-verify
+OUT=$(sh scripts/release.sh 1.3.0 --dry-run 2>&1 || true)
+printf '%s' "$OUT" | grep -q 'release a beta of this version' || fail "release.sh didn't ask for a beta first"
+printf '%s' "$OUT" | grep -q 'update-path-test.sh 1.3.0' || fail "release.sh didn't ask for the update-path test"
+printf '%s' "$OUT" | grep -q 'safe rollout' || fail "release.sh didn't default to a timed rollout"
+OUT=$(sh scripts/release.sh 1.3.0-beta.1 --dry-run 2>&1 || true)
+printf '%s' "$OUT" | grep -q 'release a beta of this version' && fail "a beta shouldn't need a beta"
 cd "$W/p"
 echo "release scripts and installer: ok"

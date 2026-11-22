@@ -8,6 +8,8 @@
 // Add this file to your app target (it starts in updater/). API: Updater.shared.check(userInitiated:),
 // .available (Release?), .promptInstall(), .updateNow(), .announceLaunch(), Updater.channel; views UpdateButton,
 // AnnouncementBanner; hooks onUpdateAvailable, onAnnouncement.
+// Add a `--update-now` launch flag (scripts/update-path-test.sh uses it to prove old copies update):
+//   if CommandLine.arguments.contains("--update-now") { Updater.shared.updateNow() }
 // Use:  @StateObject var updater = Updater.shared  …  UpdateButton(updater: updater)
 //       call `Updater.shared.announceLaunch()` once at startup to show "What's new" after an update.
 

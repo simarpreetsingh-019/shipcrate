@@ -4,6 +4,9 @@ import SwiftUI
 
 @main
 struct HelloShipApp: App {
+    init() {   // shipcrate: lets scripts/update-path-test.sh prove that old copies update themselves
+        if CommandLine.arguments.contains("--update-now") { Updater.shared.updateNow() }
+    }
     var body: some Scene {
         WindowGroup { ContentView().frame(width: 420, height: 300) }
     }

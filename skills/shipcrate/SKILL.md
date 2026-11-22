@@ -66,6 +66,12 @@ If `shipcrate` is installed, prefer it: `shipcrate doctor`, `check`, `changelog 
 - Bad release: `sh scripts/yank.sh X.Y.Z [--to GOOD] [--reason "…"]` (ask first). Every copy on X.Y.Z is moved back; the tap too.
 - A user's own copy: `<binary> upgrade --rollback`.
 
+## Updating shipcrate in a project that's live
+
+`shipcrate sync` (only from a shipcrate release) → review the diff, and update the user's own copy of the updater by
+hand if they moved it → release a beta (`X.Y.Z-beta.1`) → `sh scripts/update-path-test.sh X.Y.Z` → stable release
+(timed rollout by default). Don't use the `--skip-*` flags unless the user asks.
+
 ## Message users without a release
 
 `sh scripts/announce.sh "text" [--level info|warning|security] [--url https://…] [--below X.Y.Z]` (or `--clear`).

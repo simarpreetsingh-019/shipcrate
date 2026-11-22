@@ -6,6 +6,7 @@
 #                                      (kind: rust-cli | python-cli | node-cli | macos-app)
 #   shipcrate init [dir] [options]     add the release tooling to an existing repo ("shipcrate init --help")
 #   shipcrate doctor                   check this project's setup and explain any fixes
+#   shipcrate sync [--dry-run]         refresh shipcrate's own files in a project from this shipcrate release
 #
 # Every day (run inside a project; they call the project's own scripts/):
 #   shipcrate check [--quick|--release]        the quality gate
@@ -30,7 +31,7 @@ T="$KIT/templates"
 say() { printf '%s\n' "$*"; }
 die() { say "shipcrate: $*" >&2; exit 1; }
 
-usage() { sed -n '2,25p' "$SELF" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,26p' "$SELF" | sed 's/^# \{0,1\}//'; }
 init_usage() { sed -n '/^# init options/,/^# Dependency-free/p' "$SELF" | sed 's/^# \{0,1\}//'; }
 
 # The project root: the nearest folder (from here up) with a release.conf.
@@ -66,6 +67,50 @@ doctor() {
   if gh run list --workflow ci.yml --limit 1 --json conclusion -q '.[0].conclusion' 2>/dev/null | grep -q success; then ok "last CI run passed"; else printf '  • no passing CI run yet: push and check the Actions tab\n'; fi
   say ""; [ $bad = 0 ] && say "All good. Next: shipcrate release <version> --dry-run" || say "$bad thing(s) to fix."
   return $bad
+}
+
+# Is this shipcrate an actual release? (a Homebrew/tarball install is; a git checkout must sit on a vX.Y.Z tag)
+kit_release() {
+  if [ -d "$KIT/.git" ]; then git -C "$KIT" describe --tags --exact-match 2>/dev/null | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'
+  else return 0; fi
+}
+
+# Refresh the files shipcrate owns (scripts/, tests/shipcrate/, .githooks/, updater/) from this shipcrate version.
+# Everything else (release.conf values, workflows, installers, your code) is left alone and only reported.
+sync_project() {
+  DRYS=0; YESS=0; DEV=0
+  for a in "$@"; do case "$a" in --dry-run|-n) DRYS=1 ;; --yes|-y) YESS=1 ;; --allow-dev) DEV=1 ;; *) die "sync: unknown option $a" ;; esac; done
+  P=$(project); cd "$P"; . ./release.conf
+  if ! kit_release && [ $DEV = 0 ]; then
+    die "this shipcrate ($KIT) isn't a release (rule: sync only from releases). Install a release (brew upgrade shipcrate / shipcrate self-update), or pass --allow-dev for a throwaway copy"
+  fi
+  DESCS=$(sed -n 's/^  desc "\(.*\)"$/\1/p' packaging/homebrew/*.rb 2>/dev/null | head -1)
+  W=$(mktemp -d); trap 'rm -rf "${W:?}"' EXIT
+  set -- --yes --name "$PRODUCT" --type "$TYPE" --lang "$KIT_LANG" --repo "$REPO" --tap "$TAP_REPO"
+  [ -n "$DESCS" ] && set -- "$@" --desc "$DESCS"
+  [ "$TYPE" = cli ] && set -- "$@" --targets "$TARGETS"
+  [ "$TYPE" = app ] && [ "$BUNDLE_ID" != none ] && set -- "$@" --bundle-id "$BUNDLE_ID"
+  mkdir -p "$W/new"; sh "$KIT/bin/shipcrate" init "$W/new" "$@" >/dev/null || die "sync: couldn't generate the new files"
+  say "shipcrate sync: ${SHIPCRATE_VERSION:-unknown} → $KIT_VERSION ($P)"
+  changed=0
+  for f in $(cd "$W/new" && find scripts tests/shipcrate .githooks updater -type f 2>/dev/null | sort); do
+    if [ ! -f "$f" ]; then say "  + $f (new)"; changed=$((changed+1))
+    elif ! cmp -s "$W/new/$f" "$f"; then say "  ~ $f ($(diff "$f" "$W/new/$f" | grep -c '^[<>]') lines differ)"; changed=$((changed+1)); fi
+  done
+  copies=$(grep -rls 'shipcrate:public-key' --include='*.rs' --include='*.py' --include='*.js' --include='*.ts' --include='*.swift' . 2>/dev/null | grep -v -E '^\./updater/|node_modules' || true)
+  for c in $copies; do say "  ! $c is your copy of the updater: update it from updater/ yourself (diff it; your changes are kept)"; done
+  for f in .github/workflows/ci.yml .github/workflows/release.yml install.sh SECURITY.md; do
+    [ -f "$W/new/$f" ] && [ -f "$f" ] && ! cmp -s "$W/new/$f" "$f" && say "  · $f differs from the new template (not synced: yours to compare)"
+  done
+  [ $changed = 0 ] && say "  nothing to update in shipcrate's own files"
+  if [ $DRYS = 1 ]; then say "Dry run: nothing changed."; return 0; fi
+  if [ $YESS = 0 ] && [ $changed -gt 0 ]; then printf 'Update these %s files? [y/N] ' "$changed"; read -r ok; case "$ok" in y|Y|yes) ;; *) say "cancelled"; return 1 ;; esac; fi
+  (cd "$W/new" && find scripts tests/shipcrate .githooks updater -type f 2>/dev/null) | while IFS= read -r f; do mkdir -p "$(dirname "$f")"; cp -p "$W/new/$f" "$f"; done
+  # keep signed updates on: put this project's public key back into the fresh updater files
+  if [ -n "${PUBLIC_KEY:-}" ]; then for f in updater/*; do [ -f "$f" ] && sed -E "/shipcrate:public-key/s|\"[A-Za-z0-9+/=]*\"|\"$PUBLIC_KEY\"|" "$f" > "$f.new" && mv "$f.new" "$f"; done; fi
+  if grep -q '^SHIPCRATE_VERSION=' release.conf; then sed "s/^SHIPCRATE_VERSION=.*/SHIPCRATE_VERSION='$KIT_VERSION'/" release.conf > release.conf.new && mv release.conf.new release.conf
+  else printf "\n# The shipcrate release these files came from (shipcrate sync updates it).\nSHIPCRATE_VERSION='%s'\n" "$KIT_VERSION" >> release.conf; fi
+  say "✓ synced to shipcrate $KIT_VERSION. Next: review (git diff), run the gate, and release a beta first."
 }
 
 status() {
@@ -109,6 +154,7 @@ case "$cmd" in
     cd "$DIR"; git init -q 2>/dev/null || true
     sh setup.sh "$@"
     exit 0 ;;
+  sync) sync_project "$@"; exit $? ;;
   status) status; exit 0 ;;
   doctor) doctor; exit $? ;;
   demo) exec sh "$KIT/examples/demo.sh" ;;
@@ -245,7 +291,7 @@ put() { printf 's|{{%s}}|%s|g\n' "$1" "$(printf '%s' "$2" | sed 's/[\\|&]/\\&/g'
 put PRODUCT "$NAME"; put TOKEN "$TOKEN"; put TYPE "$TYPE"; put LANG "$KLANG"; put REPO "$REPO"; put OWNER "$OWNER"
 put TAP_REPO "$TAP"; put TAP_FILE "$TAP_FILE"; put BINARY "$BINARY"; put BUNDLE_ID "${BUNDLE:-none}"; put ASSET "$ASSET"
 put BUILD_CMD "$BUILD_CMD"; put ARTIFACT "$ARTIFACT"; put VERSION_CMD "$VERSION_CMD"; put BUILD_WHERE "$BUILD_WHERE"
-put RUNNER "$RUNNER"; put CLASS "$CLASS"; put ENV "$ENVP"; put DESCRIPTION "$(printf '%s' "$DESC" | tr -d '"')"; put MODULE "$MODULE"; put TARGETS "$TARGETS"
+put RUNNER "$RUNNER"; put CLASS "$CLASS"; put ENV "$ENVP"; put DESCRIPTION "$(printf '%s' "$DESC" | tr -d '"')"; put MODULE "$MODULE"; put TARGETS "$TARGETS"; put KIT_VERSION "$KIT_VERSION"
 
 # --- File list: "template-path target-path" per line.
 LIST=$(cd "$T/common" && find . -type f | sed 's#^\./##' | sort | awk '{print "common/" $0 " " $0}')

@@ -6,16 +6,22 @@
 #   sh scripts/release.sh 1.3.0-beta.1          a pre-release: only the beta channel gets it, Homebrew stays put
 # --rollout N offers it to N% of users first (widen with scripts/rollout.sh; Homebrew follows at 100%).
 # --rollout-days D grows it from 0% (or --rollout N) to 100% over D days on its own: no follow-up commands.
+# Safety rules when shipcrate's own code or the updater changed since the last stable release:
+#   a beta of this version first (--skip-beta), scripts/update-path-test.sh passed for this commit (--skip-update-test),
+#   and a timed rollout (SAFE_ROLLOUT_DAYS in release.conf, default 7; --full-rollout to skip).
+# Every file name the last release had must still be there, so older copies can always update (--allow-renamed-assets).
 # --dry-run builds and prints the notes but changes nothing. Asks before publishing unless --yes.
 # Needs git and gh (`gh auth login`). Tokens never go in files: webhook settings come from the environment.
 set -eu
 cd "$(dirname "$0")/.."
 . ./release.conf; . scripts/lib.sh
 V=""; NOTES=""; FLAGS=""; YES=0; DRY=0; ROLLOUT=100; ROLLOUT_DAYS=""; NEXT=""
+SKIP_BETA=0; SKIP_UPT=0; FULL=0; RENAMED=0
 for a in "$@"; do
   if [ "$NEXT" = rollout ]; then ROLLOUT="$a"; NEXT=""; continue; fi
   if [ "$NEXT" = days ]; then ROLLOUT_DAYS="$a"; NEXT=""; continue; fi
   case "$a" in
+  --skip-beta) SKIP_BETA=1 ;; --skip-update-test) SKIP_UPT=1 ;; --full-rollout) FULL=1 ;; --allow-renamed-assets) RENAMED=1 ;;
   --yes|-y) YES=1 ;; --dry-run|-n) DRY=1 ;; --security) FLAGS="--security" ;; --rollout) NEXT=rollout ;; --rollout-days) NEXT=days ;;
   -*) echo "unknown flag $a"; exit 2 ;;
   *) if [ -z "$V" ]; then V="${a#v}"; else NOTES="$a"; fi ;;
@@ -45,7 +51,7 @@ fi
 
 say "→ Guardrails"
 echo "$V" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' || die "version must look like 1.2.3 or 1.2.3-beta.1"
-command -v gh >/dev/null || die "install the GitHub CLI (brew install gh / winget install GitHub.cli) and run gh auth login"
+command -v gh >/dev/null || guard "install the GitHub CLI (brew install gh / winget install GitHub.cli) and run gh auth login"
 gh auth status >/dev/null 2>&1 || guard "gh isn't signed in: run gh auth login"
 git rev-parse -q --verify "refs/tags/v$V" >/dev/null && die "tag v$V already exists"
 LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' | head -1 || true)   # skips moving tags like v1
@@ -62,6 +68,36 @@ grep -Eq "^## \[?v?$V\]?([ ]|$)" CHANGELOG.md 2>/dev/null || guard "CHANGELOG.md
 if [ "${ALLOW_NO_CI:-}" != 1 ]; then
   CI=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --json conclusion -q '.[0].conclusion' 2>/dev/null || true)
   [ "$CI" = success ] || guard "CI hasn't passed for this commit (status: ${CI:-none}). Push and wait, or ALLOW_NO_CI=1 for a first release"
+fi
+
+# --- Safety rules for releases that change shipcrate's code or the updater
+LAST_STABLE=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+SC=""
+if [ -n "$LAST_STABLE" ]; then
+  MARKED=$(grep -rls 'shipcrate:public-key' --include='*.rs' --include='*.py' --include='*.js' --include='*.ts' --include='*.swift' . 2>/dev/null | grep -v node_modules | sed 's#^\./##' || true)
+  SC=$(git diff --name-only "$LAST_STABLE"..HEAD -- updater scripts tests/shipcrate $MARKED 2>/dev/null | tr '\n' ' ')
+  [ "$(git show "$LAST_STABLE:release.conf" 2>/dev/null | grep '^SHIPCRATE_VERSION=')" != "$(grep '^SHIPCRATE_VERSION=' release.conf)" ] && SC="$SC release.conf(SHIPCRATE_VERSION)"
+fi
+if [ -n "$SC" ] && [ $PRE = 0 ]; then
+  say "• shipcrate's code or the updater changed since $LAST_STABLE: $SC"
+  if [ $SKIP_BETA = 0 ] && [ -z "$(git tag -l "v$V-*")" ]; then
+    guard "release a beta of this version to testers first: sh scripts/release.sh $V-beta.1   (or --skip-beta)"
+  fi
+  OK=$(cat "$(git rev-parse --git-dir)/shipcrate-update-path-ok" 2>/dev/null || true)
+  if [ $SKIP_UPT = 0 ] && [ "${OK%% *}" != "$(git rev-parse HEAD)" ]; then
+    guard "prove old copies update to this one first: sh scripts/update-path-test.sh $V   (or --skip-update-test)"
+  fi
+  if [ $FULL = 0 ] && [ "$ROLLOUT" = 100 ] && [ -z "$ROLLOUT_DAYS" ]; then
+    ROLLOUT_DAYS="${SAFE_ROLLOUT_DAYS:-7}"; ROLLOUT=0; export ROLLOUT_DAYS
+    say "• safe rollout: 0% → 100% over $ROLLOUT_DAYS days (--full-rollout to send it to everyone now)"
+  fi
+fi
+# Every download name the last release had must still exist (older updaters and installers look for them).
+if [ -n "$LAST_STABLE" ] && [ $RENAMED = 0 ] && command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
+  WANT=""; for t in $TARGETS; do a=$(asset_for "$t"); WANT="$WANT $a $a.sha256"; done
+  for n in $(gh release view "$LAST_STABLE" --repo "$REPO" --json assets -q '.assets[].name' 2>/dev/null); do
+    case "$n" in *.tar.gz|*.tgz|*.zip|*.tar.gz.sha256|*.zip.sha256|*.tgz.sha256) case " $WANT " in *" $n "*) ;; *) guard "$LAST_STABLE had $n, but this release won't: older copies would break (--allow-renamed-assets if you really mean it)" ;; esac ;; esac
+  done
 fi
 
 say "→ Quality gate (release mode: security checks are required, not optional)"

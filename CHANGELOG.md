@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+- **Safe updates for live apps (6 rules):** `shipcrate sync` (shipcrate releases only, records `SHIPCRATE_VERSION`); `release.sh` asks for a beta first, a passing `scripts/update-path-test.sh` (the last stable copy updates itself to the new build, locally) and a timed rollout (`SAFE_ROLLOUT_DAYS`, default 7) when shipcrate's code or the updater changed; it refuses to drop download names the last release had. Escape hatches: `--skip-beta`, `--skip-update-test`, `--full-rollout`, `--allow-renamed-assets`.
+- Swift template: a `--update-now` launch flag pattern (the example app has it).
+
 ### Fixed
 - Swift projects without SwiftPM: a lower-case `tests/` folder no longer triggers `swift test` (macOS disks ignore case).
 - Bash scripts are syntax-checked with `bash -n` (by shebang), so process substitution no longer fails the gate.

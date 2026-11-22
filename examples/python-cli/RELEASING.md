@@ -30,6 +30,29 @@ gh auth login                   # releases use the GitHub CLI; never put tokens 
 4. `.github/workflows/release.yml` signs a build-provenance attestation. Check it:
    `gh attestation verify hello-py.tar.gz --repo you/hello-py`.
 
+## Updating shipcrate in a live app (6 rules)
+
+The updater is the one part of an app that can't fix itself, so changes to it go out carefully:
+
+1. **Sync only from shipcrate releases.** `shipcrate sync` refreshes shipcrate's own files (`scripts/`,
+   `tests/shipcrate/`, `.githooks/`, `updater/`) and records `SHIPCRATE_VERSION` in `release.conf`. It refuses a
+   development copy of shipcrate. Your settings, workflows, installers and your copy of the updater are never
+   overwritten: it lists them for you to compare.
+2. **Beta first.** If shipcrate's code or the updater changed since the last stable release, `release.sh`
+   asks for a beta of that version first (`X.Y.Z-beta.1`). Only testers with the beta channel on get it.
+3. **Prove the update path.** `sh scripts/update-path-test.sh X.Y.Z` downloads the last stable release, builds
+   the new one locally, and lets the **old copy update itself** (checksum, signature, swap, runs), all on this
+   machine. `release.sh` asks for a pass on the exact commit you release.
+4. **Roll out slowly.** Those releases roll out over `SAFE_ROLLOUT_DAYS` (7 by default). `scripts/yank.sh` stays
+   ready if something goes wrong.
+5. **Keep the old download names.** `release.sh` refuses a release that drops a file name the last release had,
+   so older updaters, installers and Homebrew keep working.
+6. **Experiment elsewhere.** Try new shipcrate versions on a test project (`shipcrate new rust-cli /tmp/try`)
+   or shipcrate's examples, not on the live app.
+
+Each rule has an escape hatch for when you really mean it: `--skip-beta`, `--skip-update-test`,
+`--full-rollout`, `--allow-renamed-assets`.
+
 ## Update checks
 
 The app/CLI checks for updates with one anonymous GET to
