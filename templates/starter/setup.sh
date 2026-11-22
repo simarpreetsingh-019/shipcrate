@@ -38,16 +38,17 @@ add "${OLD_REPO%%/*}/$OLD_TOKEN/" "$OWNER/$TOKEN/"   # brew shorthand: owner/tap
 add "$OLD_TAP" "$TAP"; add "$OLD_REPO" "$REPO"; add "$OLD_BUNDLE" "$BUNDLE"
 add "$OLD_ENV" "$ENVP"; add "$OLD_CLASS" "$CLASS"; add "$OLD_MODULE" "$MODULE"
 add "$OLD_NAME" "$NAME"; add "$OLD_TOKEN" "$TOKEN"
-git ls-files | grep -v -E '^(setup\.sh|\.template\.conf)$' | while IFS= read -r f; do
+list() { if git rev-parse --git-dir >/dev/null 2>&1; then git ls-files --cached --others --exclude-standard; else find . -type f ! -path './.git/*' | sed 's#^\./##'; fi; }
+list | grep -v -E '^(setup\.sh|\.template\.conf)$' | while IFS= read -r f; do
   [ -f "$f" ] || continue
   grep -Iq . "$f" 2>/dev/null || continue            # text files only
   sed -f "$SED" "$f" > "$f.tmp" && { cmp -s "$f" "$f.tmp" && rm -f "$f.tmp" || { cat "$f.tmp" > "$f"; rm -f "$f.tmp"; }; }
 done
 # Rename files and folders named after the example (deepest first).
-git ls-files | awk -F/ '{p=""; for(i=1;i<=NF;i++){p=(p==""?$i:p"/"$i); print p}}' | sort -u | awk '{print length, $0}' | sort -rn | cut -d' ' -f2- |
+list | awk -F/ '{p=""; for(i=1;i<=NF;i++){p=(p==""?$i:p"/"$i); print p}}' | sort -u | awk '{print length, $0}' | sort -rn | cut -d' ' -f2- |
 while IFS= read -r p; do
   b=$(basename "$p"); nb=$(printf '%s' "$b" | sed -f "$SED")
-  [ "$b" != "$nb" ] && [ -e "$p" ] && git mv -k "$p" "$(dirname "$p")/$nb" 2>/dev/null || true
+  [ "$b" != "$nb" ] && [ -e "$p" ] && mv "$p" "$(dirname "$p")/$nb" || true
 done
 
 [ -d .git ] && sh scripts/install-hooks.sh >/dev/null && echo "✓ git hooks on (quick checks on commit, full checks on push)"

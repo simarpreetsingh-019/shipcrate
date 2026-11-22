@@ -12,6 +12,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
+    if: github.repository == 'simarpreetsingh-019/shipcrate'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +25,7 @@ jobs:
           destination: ./_site
       - uses: actions/upload-pages-artifact@v3
   deploy:
+    if: github.repository == 'simarpreetsingh-019/shipcrate'
     needs: build
     runs-on: ubuntu-latest
     permissions:

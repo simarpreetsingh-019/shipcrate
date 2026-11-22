@@ -2,7 +2,9 @@
 # shipcrate: releases and updates for your products, in one command.
 #
 # Set up a project:
-#   shipcrate init [dir] [options]     add the release tooling to a repo (see "shipcrate init --help")
+#   shipcrate new <kind> <dir> [--name N] [--repo owner/name]   start a ready-to-release project
+#                                      (kind: rust-cli | python-cli | node-cli | macos-app)
+#   shipcrate init [dir] [options]     add the release tooling to an existing repo ("shipcrate init --help")
 #   shipcrate doctor                   check this project's setup and explain any fixes
 #
 # Every day (run inside a project; they call the project's own scripts/):
@@ -28,7 +30,7 @@ T="$KIT/templates"
 say() { printf '%s\n' "$*"; }
 die() { say "shipcrate: $*" >&2; exit 1; }
 
-usage() { sed -n '2,23p' "$SELF" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,25p' "$SELF" | sed 's/^# \{0,1\}//'; }
 init_usage() { sed -n '/^# init options/,/^# Dependency-free/p' "$SELF" | sed 's/^# \{0,1\}//'; }
 
 # The project root: the nearest folder (from here up) with a release.conf.
@@ -95,6 +97,18 @@ case "$cmd" in
   keygen) script keygen "$@" ;;
   stats) if [ "${1:-}" = --repo ]; then R="${2:?--repo owner/name}"; shift 2; SHIPCRATE_REPO="$R" exec sh "$T/common/scripts/stats.sh" "$@"; fi
          script stats "$@" ;;
+  new)
+    KIND="${1:-}"; DIR="${2:-}"
+    case "$KIND" in rust-cli|python-cli|node-cli|macos-app) ;; *) die "usage: shipcrate new <rust-cli|python-cli|node-cli|macos-app> <dir> [--name N] [--repo owner/name]" ;; esac
+    [ -n "$DIR" ] || die "usage: shipcrate new $KIND <dir>"
+    [ -e "$DIR" ] && [ -n "$(ls -A "$DIR" 2>/dev/null)" ] && die "$DIR already exists and isn't empty"
+    shift 2
+    W=$(mktemp -d); trap 'rm -rf "${W:?}"' EXIT
+    sh "$KIT/tools/make-templates.sh" "$W" --only "$KIND" >/dev/null
+    mkdir -p "$DIR" && cp -R "$W/shipcrate-template-$KIND/." "$DIR/"
+    cd "$DIR"; git init -q 2>/dev/null || true
+    sh setup.sh "$@"
+    exit 0 ;;
   status) status; exit 0 ;;
   doctor) doctor; exit $? ;;
   demo) exec sh "$KIT/examples/demo.sh" ;;

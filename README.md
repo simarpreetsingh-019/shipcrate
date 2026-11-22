@@ -20,11 +20,9 @@ system monitor, and made generic. Works by hand, and by AI coding agents through
 /shipcrate:setup
 ```
 
-**From a template (under 5 minutes):** click "Use this template" on
-[Rust CLI](https://github.com/simarpreetsingh-019/shipcrate-template-rust-cli) ·
-[Python CLI](https://github.com/simarpreetsingh-019/shipcrate-template-python-cli) ·
-[Node CLI](https://github.com/simarpreetsingh-019/shipcrate-template-node-cli) ·
-[SwiftUI Mac app](https://github.com/simarpreetsingh-019/shipcrate-template-macos-app), then run `sh setup.sh`.
+**New project (under 5 minutes):** click **Use this template** at the top of this repo, clone your new repo, then
+`sh start.sh` and pick Rust CLI, Python CLI, Node CLI or SwiftUI Mac app. It becomes one clean, ready-to-release
+project named after your repo. With the command installed: `shipcrate new rust-cli myapp`.
 
 **The command, for an existing project:**
 

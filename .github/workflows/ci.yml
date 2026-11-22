@@ -7,6 +7,7 @@ permissions:
   contents: read
 jobs:
   gate:
+    if: github.repository == 'simarpreetsingh-019/shipcrate'
     strategy:
       fail-fast: false
       matrix:
@@ -17,6 +18,7 @@ jobs:
       - name: Quality gate (shell syntax, secrets, workflow guardrails, init + shipped tests for every type and language)
         run: sh scripts/check.sh
   windows:
+    if: github.repository == 'simarpreetsingh-019/shipcrate'
     # Windows: generate a Windows-target CLI, parse install.ps1, run the shipped tests under Git Bash.
     runs-on: windows-latest
     defaults:

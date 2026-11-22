@@ -27,5 +27,27 @@ for t in rust-cli python-cli node-cli macos-app; do
   esac
   ( cd "$D" && sh tests/shipcrate/run.sh >/dev/null 2>&1 ) && ok "shipped shipcrate tests pass" || bad "shipped shipcrate tests fail"
 done
+# "Use this template" on the main repo, then start.sh: becomes one clean project named after the new repo
+echo "• main repo template + start.sh"
+T="$W/from-template"; mkdir -p "$T"
+git ls-files -z | xargs -0 -I{} sh -c 'mkdir -p "$1/$(dirname "$2")" && cp -p "$2" "$1/$2"' _ "$T" {}
+( cd "$T" && git init -q && git config user.email t@example.invalid && git config user.name t && git config commit.gpgsign false \
+  && git remote add origin https://github.com/acme/gizmo.git && git add -A && git commit -qm "Initial commit" --no-verify ) || bad "template copy"
+( cd "$T" && sh start.sh --kind node-cli --yes >/dev/null 2>&1 ) && ok "start.sh runs" || bad "start.sh failed"
+[ ! -e "$T/bin/shipcrate" ] && [ ! -e "$T/templates" ] && [ ! -e "$T/start.sh" ] && ok "shipcrate's own files removed" || bad "template leftovers"
+( cd "$T" && node bin/gizmo.js --version ) 2>/dev/null | grep -q 'gizmo 1.0.0' && ok "runs as gizmo" || bad "gizmo doesn't run"
+grep -q "^REPO='acme/gizmo'" "$T/release.conf" && ok "release.conf points at acme/gizmo" || bad "repo wrong"
+grep -q "simarpreetsingh-019/shipcrate'" "$T/.github/workflows/ci.yml" 2>/dev/null && bad "kit CI leaked into the project" || ok "project has its own CI"
+( cd "$T" && SHIPCRATE_START_FORCE= sh start.sh --kind node-cli --yes >/dev/null 2>&1 ) && bad "start.sh ran twice" || ok "start.sh is gone after use"
+# The real shipcrate repo must refuse to turn itself into a project
+sh start.sh --kind rust-cli --yes >/dev/null 2>&1 && bad "start.sh ran inside shipcrate itself!" || ok "start.sh refuses to run in shipcrate itself"
+
+# `shipcrate new` without git metadata (like a Homebrew install of shipcrate)
+echo "• shipcrate new (no git, Homebrew-like install)"
+K="$W/kit"; mkdir -p "$K"; git ls-files -z | xargs -0 -I{} sh -c 'mkdir -p "$1/$(dirname "$2")" && cp -p "$2" "$1/$2"' _ "$K" {}
+( cd "$W" && sh "$K/bin/shipcrate" new python-cli "$W/py-new" --name tool --repo acme/tool --yes >/dev/null 2>&1 ) && ok "shipcrate new runs" || bad "shipcrate new failed"
+( cd "$W/py-new/src" && python3 -m tool --version ) 2>/dev/null | grep -q 'tool 1.0.0' && ok "new project runs as tool" || bad "new project doesn't run"
+sh "$K/bin/shipcrate" new python-cli "$W/py-new" --yes >/dev/null 2>&1 && bad "new overwrote a folder" || ok "new refuses a non-empty folder"
+
 echo; [ $FAIL -eq 0 ] && echo "All template tests passed." || echo "$FAIL template test(s) failed."
 exit $FAIL

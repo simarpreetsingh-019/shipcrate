@@ -4,7 +4,7 @@
 
 ### Added
 - **Claude Code plugin:** `/plugin install shipcrate --marketplace simarpreetsingh-019/shipcrate` brings the MCP server, skill, `/shipcrate:setup` (about 2 minutes) and `/shipcrate:release`.
-- **Starter templates:** "Use this template" repos for Rust, Python, Node and a SwiftUI Mac app, with `setup.sh` renaming everything to your project (under 5 minutes); `tools/make-templates.sh` builds them, and `tests/test-templates.sh` runs them as a new user.
+- **New projects in under 5 minutes:** `shipcrate new <rust-cli|python-cli|node-cli|macos-app> <dir>`, or **Use this template** on the shipcrate repo followed by `sh start.sh`; either way you get one ready-to-release project renamed after your repo. shipcrate's own workflows skip in repos made from the template. `tests/test-templates.sh` runs every path as a new user.
 - `tools/ci-local.sh`: run the Linux CI job locally in Docker before pushing.
 
 - Swift updater: `updateNow()`, a public `install`, and `<NAME>_UPDATE_MANIFEST` (a mirror or a manifest on this machine) for testing.

@@ -1,13 +1,20 @@
 #!/bin/sh
 # Build the "Use this template" starter repos from examples/ into OUT (default ./_templates):
-#   sh tools/make-templates.sh [OUT]
+#   sh tools/make-templates.sh [OUT] [--only KIND]      (KIND: rust-cli | python-cli | node-cli | macos-app)
 # Each one is an example project + setup.sh (rename to your app in one command) + a template README.
+# Used by `shipcrate new` and the main repo's start.sh. Works without git (e.g. a Homebrew install).
 set -eu
 cd "$(dirname "$0")/.."
-OUT="${1:-_templates}"; mkdir -p "$OUT"
+OUT="${1:-_templates}"; ONLY="${3:-}"; [ "${2:-}" = --only ] || ONLY=""; mkdir -p "$OUT"
+# Project files of an example: tracked files when this is a git checkout, else everything but build output.
+files_of() {
+  if git rev-parse --git-dir >/dev/null 2>&1 && [ -n "$(git ls-files "examples/$1" | head -1)" ]; then git ls-files "examples/$1"
+  else find "examples/$1" -type f ! -path '*/target/*' ! -path '*/dist/*' ! -path '*/build/*' ! -path '*/node_modules/*' ! -path '*/__pycache__/*' ! -name '.DS_Store'; fi
+}
 make() { # make <example> <OLD_NAME> <OLD_TOKEN> <OLD_ENV> <OLD_CLASS> <OLD_MODULE> <OLD_REPO> <OLD_TAP> <OLD_BUNDLE> <kind> <first-run>
-  ex=$1; D="$OUT/shipcrate-template-$ex"; rm -rf "${D:?}"; mkdir -p "$D"
-  git ls-files "examples/$ex" | while IFS= read -r f; do r=${f#examples/$ex/}; mkdir -p "$D/$(dirname "$r")"; cp -p "$f" "$D/$r"; done
+  ex=$1; [ -z "$ONLY" ] || [ "$ONLY" = "$ex" ] || return 0
+  D="$OUT/shipcrate-template-$ex"; rm -rf "${D:?}"; mkdir -p "$D"
+  files_of "$ex" | while IFS= read -r f; do r=${f#examples/$ex/}; mkdir -p "$D/$(dirname "$r")"; cp -p "$f" "$D/$r"; done
   rm -f "$D/.shipcrate-init"
   cat > "$D/.template.conf" <<CONF
 OLD_NAME='$2'
@@ -30,8 +37,9 @@ rollback, and update checks that are already wired in.
 
 ## Make it yours in under 5 minutes
 
-1. Click **Use this template** (top right), create your repository, and clone it.
-2. In the clone, run:
+1. Get the project: \`shipcrate new <kind> <dir>\`, or GitHub's **Use this template** on shipcrate followed by
+   \`sh start.sh\`, or copy this folder.
+2. In it, run (\`shipcrate new\` and \`start.sh\` already did this):
    \`\`\`sh
    sh setup.sh
    \`\`\`
