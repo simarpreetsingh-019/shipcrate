@@ -119,7 +119,7 @@ sync_project() {
   [ -n "$DESCS" ] && set -- "$@" --desc "$DESCS"
   [ "$TYPE" = cli ] && set -- "$@" --targets "$TARGETS"
   [ "$TYPE" = app ] && [ "$BUNDLE_ID" != none ] && set -- "$@" --bundle-id "$BUNDLE_ID"
-  mkdir -p "$W/new"; sh "$KIT/bin/shipcrate" init "$W/new" "$@" >/dev/null || die "sync: couldn't generate the new files"
+  mkdir -p "$W/new"; SHIPCRATE_STATS="${STATS_SNAPSHOTS:-off}" sh "$KIT/bin/shipcrate" init "$W/new" "$@" >/dev/null || die "sync: couldn't generate the new files"
   if [ -n "$SHOW" ]; then   # compare one of your files with shipcrate's current version of it; changes nothing
     [ -f "$W/new/$SHOW" ] || die "shipcrate has no $SHOW for this project"
     if [ -f "$SHOW" ]; then diff -u "$SHOW" "$W/new/$SHOW" | sed "2s|^+++ .*|+++ shipcrate's $SHOW|" || true; else cat "$W/new/$SHOW"; fi
@@ -149,10 +149,21 @@ sync_project() {
     [ -f "$W/new/$f" ] && [ -f "$f" ] && ! cmp -s "$W/new/$f" "$f" && say "  · $f differs from the new template (not synced: yours to compare)"
   done
   [ $changed = 0 ] && say "  nothing to update in shipcrate's own files"
+  ST=.github/workflows/stats.yml; STATS_ADD=0; STATS_DEL=0
+  if [ "${STATS_SNAPSHOTS:-off}" = on ] && [ ! -f "$ST" ]; then say "  + $ST (new: STATS_SNAPSHOTS is on)"; STATS_ADD=1
+  elif [ "${STATS_SNAPSHOTS:-off}" != on ] && [ -f "$ST" ] && grep -q 'from shipcrate' "$ST"; then
+    say "  - $ST starts a runner every day, but STATS_SNAPSHOTS is off: it does nothing and uses Actions minutes"; STATS_DEL=1
+  fi
   compare_pieces
   if [ $DRYS = 1 ]; then say ""; say "Dry run: nothing changed."; return 0; fi
   if [ -s "$W/apply" ] && [ $YESS = 0 ]; then printf 'Update the %s unedited file(s)? [y/N] ' "$(wc -l < "$W/apply" | tr -d ' ')"; read -r ok </dev/tty; case "$ok" in y|Y|yes) ;; *) say "cancelled"; return 1 ;; esac; fi
   while IFS= read -r f; do [ -n "$f" ] && mkdir -p "$(dirname "$f")" && cp -p "$W/new/$f" "$f"; done < "$W/apply"
+  [ $STATS_ADD = 1 ] && mkdir -p .github/workflows && cp -p "$W/new/$ST" "$ST" && say "  added $ST (daily download snapshot)"
+  if [ $STATS_DEL = 1 ]; then
+    if [ $YESS = 1 ]; then say "  kept $ST (remove it to save Actions minutes: git rm $ST; rerun without --yes to choose)"
+    else printf 'Remove %s (turn it back on any time: STATS_SNAPSHOTS=on, then shipcrate sync)? [y/N] ' "$ST"; read -r ok </dev/tty
+      case "$ok" in y|Y|yes) rm -f "$ST"; say "  removed $ST" ;; *) say "  kept $ST" ;; esac; fi
+  fi
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     if [ $YESS = 1 ]; then say "  kept your edited $f (compare: diff $f <(new)); rerun without --yes to choose"; continue; fi
@@ -354,6 +365,8 @@ put RUNNER "$RUNNER"; put CLASS "$CLASS"; put ENV "$ENVP"; put DESCRIPTION "$(pr
 
 # --- File list: "template-path target-path" per line.
 LIST=$(cd "$T/common" && find . -type f | sed 's#^\./##' | sort | awk '{print "common/" $0 " " $0}')
+# The daily Stats workflow only when download snapshots are on: a scheduled job that does nothing still uses Actions minutes.
+[ "${SHIPCRATE_STATS:-off}" = on ] || LIST=$(printf '%s\n' "$LIST" | grep -v ' \.github/workflows/stats\.yml$')
 if [ "$TYPE" = app ]; then LIST="$LIST
 app/packaging/homebrew/cask.rb packaging/homebrew/$TOKEN.rb
 updaters/swift/Updater.swift updater/Updater.swift

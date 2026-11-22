@@ -1,6 +1,6 @@
 # Daily download snapshot (from shipcrate): saves GitHub's public download counts to stats.csv on the `stats` branch,
 # so you get history and per-day growth even when counts restart. No tracking; nothing touches your app.
-# Off until you set STATS_SNAPSHOTS='on' in release.conf.
+# Added by shipcrate sync when STATS_SNAPSHOTS='on' in release.conf (it isn't installed while snapshots are off).
 # Read it: git fetch origin stats && git show origin/stats:stats.csv > stats.csv && sh scripts/stats.sh --history stats.csv
 name: Stats
 on:

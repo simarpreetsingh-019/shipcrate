@@ -10,18 +10,19 @@
 #   a beta of this version first (--skip-beta), scripts/update-path-test.sh passed for this commit (--skip-update-test),
 #   and a timed rollout (SAFE_ROLLOUT_DAYS in release.conf, default 7; --full-rollout to skip).
 # Every file name the last release had must still be there, so older copies can always update (--allow-renamed-assets).
+# --trust-ci: when CI passed on this exact commit, skip re-running the whole gate locally (saves a full build + tests).
 # --dry-run builds and prints the notes but changes nothing. Asks before publishing unless --yes.
 # Needs git and gh (`gh auth login`). Tokens never go in files: webhook settings come from the environment.
 set -eu
 cd "$(dirname "$0")/.."
 . ./release.conf; . scripts/lib.sh
 V=""; NOTES=""; FLAGS=""; YES=0; DRY=0; ROLLOUT=100; ROLLOUT_DAYS=""; NEXT=""
-SKIP_BETA=0; SKIP_UPT=0; FULL=0; RENAMED=0
+SKIP_BETA=0; SKIP_UPT=0; FULL=0; RENAMED=0; TRUST_CI=0
 for a in "$@"; do
   if [ "$NEXT" = rollout ]; then ROLLOUT="$a"; NEXT=""; continue; fi
   if [ "$NEXT" = days ]; then ROLLOUT_DAYS="$a"; NEXT=""; continue; fi
   case "$a" in
-  --skip-beta) SKIP_BETA=1 ;; --skip-update-test) SKIP_UPT=1 ;; --full-rollout) FULL=1 ;; --allow-renamed-assets) RENAMED=1 ;;
+  --skip-beta) SKIP_BETA=1 ;; --skip-update-test) SKIP_UPT=1 ;; --full-rollout) FULL=1 ;; --allow-renamed-assets) RENAMED=1 ;; --trust-ci) TRUST_CI=1 ;;
   --yes|-y) YES=1 ;; --dry-run|-n) DRY=1 ;; --security) FLAGS="--security" ;; --rollout) NEXT=rollout ;; --rollout-days) NEXT=days ;;
   -*) echo "unknown flag $a"; exit 2 ;;
   *) if [ -z "$V" ]; then V="${a#v}"; else NOTES="$a"; fi ;;
@@ -98,8 +99,17 @@ if [ -n "$LAST_STABLE" ] && [ $RENAMED = 0 ] && command -v gh >/dev/null && gh a
   done
 fi
 
-say "→ Quality gate (release mode: security checks are required, not optional)"
-sh scripts/check.sh --release || guard "the gate failed: fix it before releasing"
+if [ $TRUST_CI = 1 ] && [ "${CI:-}" = success ]; then
+  # CI already ran the gate on this exact commit: don't build and test it all again here.
+  say "→ Quality gate: CI passed on $(git rev-parse --short HEAD), not re-running it here (--trust-ci)"
+  [ -z "$(git status --porcelain)" ] || guard "commit or stash your changes first"
+  [ -f SECURITY.md ] || guard "SECURITY.md is missing"
+else
+  [ $TRUST_CI = 1 ] && say "• --trust-ci: CI hasn't passed on this commit, so the gate runs here"
+  say "→ Quality gate (release mode: security checks are required, not optional)"
+  [ "${CI:-}" = success ] && say "  (CI already passed on this commit: --trust-ci skips this local re-run)"
+  sh scripts/check.sh --release || guard "the gate failed: fix it before releasing"
+fi
 
 say "→ Setting version $V"
 export V; [ $DRY = 1 ] || sh -c "$VERSION_CMD"

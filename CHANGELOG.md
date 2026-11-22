@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+- **No Actions minutes for nothing:** the daily Stats workflow is only written while `STATS_SNAPSHOTS='on'`. `shipcrate sync` adds it when you turn snapshots on, and offers to remove it when they're off.
+- **`release.sh --trust-ci`:** when CI passed on this exact commit, the release skips re-running the whole gate locally (it still requires a clean tree and SECURITY.md). Without the flag, the release says when this applies.
+
+### Fixed
+- `shipcrate sync` refused a checkout at a release tag when the `v1` tag pointed at the same commit.
+
 ## [0.5.0] - 2026-11-22
 
 ### Fixed (important)

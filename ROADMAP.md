@@ -26,8 +26,22 @@ Ideas from GoReleaser, dist (cargo-dist), Sparkle, Velopack, the Tauri updater a
       (rollout, announcements, yanks) in the `channel` release, so release files are never re-uploaded.
 - [ ] **Brand theming** for the update UI: Swift `UpdaterTheme` (colors, radius, icons, wording) and a CLI message
       template with an optional color that respects `NO_COLOR`.
+- [ ] **Config from the project's own manifest** (dist reads `[workspace.metadata.dist]`): take name, version,
+      description and targets from Cargo.toml, package.json or pyproject.toml, so release.conf only holds what
+      they can't.
+- [ ] **Generated workflows with a check mode** (`dist generate` / `--check`): rebuild CI and release workflows
+      from config, and fail CI when they drift, instead of "your edits" merges in sync.
+- [ ] **Updater as a package** (axoupdater): publish the std-only Rust updater as a crate (and the Python/Node
+      ones on PyPI/npm), so projects get fixes through their package manager with no file to copy.
+- [ ] **`shipcrate plan`** (`dist plan`): one dry run of the whole release (files per platform, installers,
+      manifest, tap) without building.
+- [ ] **Say when dist is the better fit:** for a Rust CLI that only needs builds, installers and Homebrew, dist is
+      the mainstream choice. Lead the docs with what shipcrate adds: signed manifests, staged and timed rollout,
+      yank, announcements and beta channels.
 
 ## From real use (msh, Thermo)
+
+- [x] No Actions minutes for nothing: the Stats workflow only exists while `STATS_SNAPSHOTS` is on; `release.sh --trust-ci` skips re-running the gate when CI passed on that commit
 
 - [ ] `shipcrate init --diff` and a merge choice for files that already exist; `--existing` mode that proposes keep/replace/merge per file
 - [ ] Gate and CI runner follow TARGETS: macOS-only projects run on macOS (doctor flags macOS-only code on ubuntu)

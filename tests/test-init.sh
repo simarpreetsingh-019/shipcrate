@@ -66,5 +66,12 @@ printf '#!/bin/sh\ntouch "%s/RAN"\nmkdir -p "$HOME/.local/bin" && touch "$HOME/.
 [ ! -e "$WORK/RAN" ] && [ ! -e "$HOME/.local/bin/hz-overwritten" ] && ok "a project's own install.sh is never run by the tests" || bad "the tests ran the project's own install.sh!"
 rm -f "$HOME/.local/bin/hz-overwritten"
 
+# The daily Stats workflow exists only while STATS_SNAPSHOTS is on (a do-nothing cron still uses Actions minutes).
+SN="$WORK/stats"; mkdir -p "$SN"; sh bin/shipcrate init "$SN" --yes --name sn --type cli --lang python --repo e/sn >/dev/null
+[ ! -e "$SN/.github/workflows/stats.yml" ] && ok "no Stats workflow while snapshots are off" || bad "init wrote stats.yml with snapshots off"
+sed -i.bak "s/^STATS_SNAPSHOTS=.*/STATS_SNAPSHOTS='on'/" "$SN/release.conf" && rm -f "$SN/release.conf.bak"
+( cd "$SN" && git init -q && sh "$OLDPWD/bin/shipcrate" sync --allow-dev --yes >/dev/null 2>&1 )
+[ -f "$SN/.github/workflows/stats.yml" ] && ok "sync adds the Stats workflow when snapshots are turned on" || bad "sync didn't add stats.yml"
+
 echo; [ $FAIL -eq 0 ] && echo "All init tests passed." || echo "$FAIL init test(s) failed."
 exit $FAIL

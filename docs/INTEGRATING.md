@@ -176,7 +176,7 @@ nothing in your app: shipcrate reads the counts GitHub keeps for every release f
 - **`latest.json` / `beta.json` downloads** = update checks. Each copy checks at most once a day, so the daily
   growth is roughly the number of copies in use (stable vs beta).
 - Counts are running totals, and they restart when a manifest is re-uploaded (by announce, rollout or yank).
-  Set `STATS_SNAPSHOTS='on'` in `release.conf` and the daily Stats workflow saves them to a `stats` branch; then
+  Set `STATS_SNAPSHOTS='on'` in `release.conf` and run `shipcrate sync`: it adds a daily Stats workflow (only then, so no Actions minutes are used while it's off) that saves them to a `stats` branch; then
   `shipcrate stats --history stats.csv` shows growth per day, e.g. how fast a rollout is being picked up.
 - Not counted: unique people (two Macs count as two), Homebrew taps, and your own mirrors (use their logs).
 
