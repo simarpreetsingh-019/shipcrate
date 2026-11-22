@@ -74,6 +74,56 @@ async function stats() {
   return { ok: true, baseline: Object.keys(base).length > 0, rows };
 }
 
+// Daily snapshots (STATS_SNAPSHOTS=on) live in stats.csv on the `stats` branch: date,tag,file,count.
+async function history() {
+  const r = await run("gh", ["api", "-H", "Accept: application/vnd.github.raw", `repos/${REPO}/contents/stats.csv?ref=stats`], 30000);
+  if (!r.ok) return { ok: false, reason: /404|Not Found/.test(r.err + r.out) ? "no snapshots yet" : ((r.err || r.out).split("\n")[0] || "needs gh") };
+  const rows = r.out.trim().split("\n").map(l => l.split(",")).filter(x => /^\d{4}-\d\d-\d\d$/.test(x[0]))
+    .map(([date, tag, file, n]) => ({ date, tag, file, count: Number(n) || 0 }));
+  return { ok: true, rows };
+}
+
+// ---- settings: a fixed list of release.conf keys the page may change. Everything else is read-only here.
+const TARGET_LIST = ["macos-arm64", "macos-x64", "linux-x64", "linux-arm64", "windows-x64", "windows-arm64"];
+const SETTINGS = {
+  SAFE_ROLLOUT_DAYS: { label: "Safe rollout (days)", help: "Releases that change shipcrate's code or the updater grow from 0% to 100% over this many days.", kind: "number", min: 0, max: 365, def: "7" },
+  STATS_SNAPSHOTS:   { label: "Daily download snapshots", help: "Saves GitHub's counts once a day to the stats branch, for the history chart. Adds a small daily workflow (after shipcrate sync).", kind: "select", options: ["off", "on"], def: "off" },
+  BUILD_WHERE:       { label: "Where releases are built", help: "local: release.sh builds and uploads, CI attests. ci: release.sh pushes the tag and GitHub Actions builds everything.", kind: "select", options: ["local", "ci"] },
+  TAP_REPO:          { label: "Homebrew tap", help: "owner/homebrew-name, or none.", kind: "text", re: /^(none|[A-Za-z0-9_.-]+\/homebrew-[A-Za-z0-9_.-]+)$/ },
+  TARGETS:           { label: "Platforms", help: "Each one builds on its own CI runner.", kind: "multi", options: TARGET_LIST, cliOnly: true },
+  CREDIT:            { label: "Credit line in release notes", help: "Optional last line, e.g. Made by Your Name · https://example.com", kind: "text", re: /^[^'\\\n\r`$]{0,400}$/, def: "" },
+};
+function settings() {
+  const c = conf(), out = [];
+  for (const [key, d] of Object.entries(SETTINGS)) { if (d.cliOnly && c.TYPE !== "cli") continue; if (key in c) out.push({ key, value: c[key], ...d, re: undefined });
+    else if ("def" in d) out.push({ key, value: d.def, ...d, re: undefined, missing: true }); }   // older release.conf: shown with the default, added on save
+  const ro = {}; for (const k of ["PRODUCT", "REPO", "TYPE", "KIT_LANG", "BINARY", "BUNDLE_ID", "ASSET", "BUILD_CMD", "ARTIFACT", "VERSION_CMD", "SHIPCRATE_VERSION"]) if (k in c) ro[k] = c[k];
+  return { editable: out, readonly: ro, signed: /^[A-Za-z0-9+/=]{40,}$/.test(c.PUBLIC_KEY || "") };
+}
+function planSettings(changes) {
+  need(changes && typeof changes === "object" && !Array.isArray(changes), "changes must be an object");
+  const file = path.join(DIR, "release.conf"), before = fs.readFileSync(file, "utf8"), c = conf();
+  let text = before; const diff = [];
+  for (const [key, raw] of Object.entries(changes)) {
+    const d = SETTINGS[key]; need(Object.prototype.hasOwnProperty.call(SETTINGS, key) && d, `${key} can't be changed here`);
+    need(!(d.cliOnly && c.TYPE !== "cli"), `${key} is only for CLIs`);
+    let v = typeof raw === "number" ? String(raw) : raw; need(typeof v === "string", `${key}: text expected`); v = v.trim();
+    if (d.kind === "number") need(/^\d+$/.test(v) && +v >= d.min && +v <= d.max, `${key}: a whole number ${d.min}-${d.max}`);
+    if (d.kind === "select") need(d.options.includes(v), `${key}: one of ${d.options.join(", ")}`);
+    if (d.kind === "multi") { const parts = v.split(/\s+/).filter(Boolean); need(parts.length && parts.every(x => d.options.includes(x)) && new Set(parts).size === parts.length, `${key}: one or more of ${d.options.join(" ")}`); v = parts.join(" "); }
+    if (d.kind === "text") need(d.re.test(v), `${key}: not a valid value`);
+    const was = key in c ? c[key] : (d.def ?? "");
+    if (was === v) continue;
+    const line = new RegExp(`^${key}=('[^']*'|"[^"]*"|\\S*)`, "m");
+    if (line.test(text)) text = text.replace(line, `${key}='${v}'`);
+    else { need("def" in d, `${key} isn't in release.conf`); text = text.replace(/\n*$/, "\n") + `# ${d.label} (added by shipcrate ui). ${d.help}\n${key}='${v}'\n`; }
+    diff.push(key in c ? `- ${key}='${c[key]}'` : `  (${key} isn't in release.conf yet: default ${d.def === "" ? "empty" : d.def})`, `+ ${key}='${v}'`);
+  }
+  need(diff.length, "nothing changed");
+  const sha = x => crypto.createHash("sha256").update(x).digest("hex");
+  return { diff: diff.join("\n"), before: sha(before), after: sha(text), text, snapshotsOn: changes.STATS_SNAPSHOTS === "on" && c.STATS_SNAPSHOTS !== "on" };
+}
+
 // ---- actions: fixed list, checked arguments, no shell
 const VER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 const need = (ok, msg) => { if (!ok) throw new Error(msg); };
@@ -86,6 +136,8 @@ const ACTIONS = {
   doctor:    () => ["sh", [path.join(KIT, "bin/shipcrate"), "doctor"]],
   changelog: () => hasScript("changelog.sh") || ["sh", ["scripts/changelog.sh"]],
   stats:     () => hasScript("stats.sh") || ["sh", ["scripts/stats.sh"]],
+  baseline:  a => hasScript("stats.sh") || ["sh", ["scripts/stats.sh", a.clear ? "--baseline-clear" : "--baseline"]],
+  sync:      () => ["sh", [path.join(KIT, "bin/shipcrate"), "sync", "--yes"]],
   preview:   a => { hasScript("release.sh"); need(VER.test(a.version || ""), "version must look like 1.2.3 or 1.2.3-beta.1"); return ["sh", ["scripts/release.sh", a.version, "--dry-run"]]; },
   webhook:   a => { hasScript("webhook-test.sh"); need(!a.event || ["all", "release", "security", "announcement", "yank"].includes(a.event), "unknown event"); need(/^https:\/\/[^\s]+$|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/\S*)?$/.test(a.url || ""), "URL must be https (http only for localhost)");
                     return ["sh", ["scripts/webhook-test.sh", "--url", a.url, ...(a.event && a.event !== "all" ? ["--event", a.event] : [])]]; },
@@ -101,7 +153,7 @@ const ACTIONS = {
                     const reason = a.reason ? textArg(a.reason, 200, "reason") : "";
                     return ["sh", ["scripts/yank.sh", a.version, ...(a.to ? ["--to", a.to] : []), ...(reason ? ["--reason", reason] : []), "--yes"]]; },
 };
-const PUBLISHES = new Set(["rollout", "announce", "yank"]);   // change what installed copies see: need confirm
+const PUBLISHES = new Set(["rollout", "announce", "yank", "sync", "baseline"]);   // change what users see, or files here: need confirm
 const shown = (cmd, args) => [cmd, ...args].filter(x => x !== "--yes").map(x => /^[\w./:=@%+-]+$/.test(x) ? x : `'${x.replace(/'/g, "'\\''")}'`).join(" ")
   .replace(path.join(KIT, "bin/shipcrate"), "shipcrate");
 
@@ -138,6 +190,18 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === "GET" && u.pathname === "/api/overview") return send(res, 200, await overview());
     if (req.method === "GET" && u.pathname === "/api/stats") return send(res, 200, await stats());
+    if (req.method === "GET" && u.pathname === "/api/history") return send(res, 200, await history());
+    if (req.method === "GET" && u.pathname === "/api/settings") return send(res, 200, settings());
+    if (req.method === "POST" && (u.pathname === "/api/settings/plan" || u.pathname === "/api/settings/apply")) {
+      if (!/^application\/json/.test(req.headers["content-type"] || "")) return send(res, 415, { error: "JSON only" });
+      const parsed = json(await body(req)); if (!parsed || typeof parsed !== "object") return send(res, 400, { error: "invalid JSON" });
+      const pl = planSettings(parsed.changes);
+      if (u.pathname.endsWith("/plan")) return send(res, 200, { diff: pl.diff, after: pl.after, snapshotsOn: pl.snapshotsOn });
+      if (parsed.confirm !== pl.after) return send(res, 409, { error: "release.conf changed since the preview, or the change wasn't confirmed: preview again" });
+      if (job && !job.done) return send(res, 409, { error: `wait for: ${job.command}` });
+      fs.writeFileSync(path.join(DIR, "release.conf"), pl.text);
+      return send(res, 200, { ok: true, diff: pl.diff, next: pl.snapshotsOn ? "Run shipcrate sync to add the daily Stats workflow, then commit and push." : "Commit release.conf when you're happy with it." });
+    }
     if (req.method === "GET" && u.pathname === "/api/job") return send(res, 200, job || {});
     if (req.method === "POST" && (u.pathname === "/api/plan" || u.pathname === "/api/run")) {
       if (!/^application\/json/.test(req.headers["content-type"] || "")) return send(res, 415, { error: "JSON only" });

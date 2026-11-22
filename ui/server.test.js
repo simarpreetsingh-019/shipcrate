@@ -51,6 +51,24 @@ test("ui server guards", async () => {
     assert.strictEqual(ok.code, 200, "normal text with quotes and emoji is fine");
     assert.match((await req(port, "/api/plan", { method: "POST", headers: H, body: "{nope" })).body, /invalid JSON/);
     assert.strictEqual((await req(port, "/api/plan", { method: "POST", headers: H, body: "a".repeat(70000) })).code, 413);
+    // settings: only listed keys, checked values, diff + confirm, keys missing from older release.conf get added
+    const sp = async (changes, apply, confirm) => { const x = await req(port, "/api/settings/" + (apply ? "apply" : "plan"), { method: "POST", headers: H, body: JSON.stringify({ changes, confirm }) }); return [x.code, JSON.parse(x.body)]; };
+    const st = JSON.parse((await req(port, "/api/settings", { headers: H })).body);
+    assert.ok(st.editable.some(e => e.key === "TARGETS"), "CLIs can pick platforms");
+    assert.ok(!st.editable.some(e => e.key === "REPO" || e.key === "BUILD_CMD"), "REPO and BUILD_CMD aren't editable");
+    for (const [ch, why] of [[{ REPO: "x/y" }, /can't be changed/], [{ BUILD_CMD: "rm -rf /" }, /can't be changed/], [{ SAFE_ROLLOUT_DAYS: "999" }, /0-365/],
+      [{ STATS_SNAPSHOTS: "maybe" }, /one of/], [{ TARGETS: "linux-x64 plan9" }, /one or more/], [{ TAP_REPO: "a/b'; rm -rf ~" }, /not a valid/],
+      [{ CREDIT: "x'$(id)" }, /not a valid/], [{ CREDIT: "line\nbreak" }, /not a valid/], [{}, /nothing changed/], [{ __proto__: { x: 1 } }, /nothing changed|can't be changed/]])
+      assert.match((await sp(ch))[1].error || "", why, JSON.stringify(ch));
+    const conf = path.join(dir, "release.conf");
+    fs.writeFileSync(conf, fs.readFileSync(conf, "utf8").replace(/^SAFE_ROLLOUT_DAYS=.*\n/m, ""));   // an older release.conf
+    const [pc, plan2] = await sp({ SAFE_ROLLOUT_DAYS: "3", STATS_SNAPSHOTS: "on", TARGETS: "linux-x64 macos-arm64" });
+    assert.strictEqual(pc, 200); assert.match(plan2.diff, /\+ SAFE_ROLLOUT_DAYS='3'/); assert.ok(plan2.snapshotsOn);
+    assert.strictEqual((await sp({ SAFE_ROLLOUT_DAYS: "3" }, true, "0".repeat(64)))[0], 409, "apply needs the confirmed preview");
+    const [ac] = await sp({ SAFE_ROLLOUT_DAYS: "3", STATS_SNAPSHOTS: "on", TARGETS: "linux-x64 macos-arm64" }, true, plan2.after);
+    assert.strictEqual(ac, 200);
+    const after = execFileSync("sh", ["-c", ". ./release.conf && echo \"$SAFE_ROLLOUT_DAYS|$STATS_SNAPSHOTS|$TARGETS\""], { cwd: dir }).toString().trim();
+    assert.strictEqual(after, "3|on|linux-x64 macos-arm64", "release.conf still loads as shell, with the new values");
     fs.rmSync(path.join(dir, "scripts/yank.sh"));
     assert.match((await planErr("yank", { version: "1.0.0" }))[1], /missing.*shipcrate sync/, "old projects without a script get a clear message");
   } finally { p.kill(); fs.rmSync(dir, { recursive: true, force: true }); }

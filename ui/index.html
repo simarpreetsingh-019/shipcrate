@@ -5,16 +5,21 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>shipcrate ui</title>
 <style>
-:root{--bg:#f5f5f7;--card:#fff;--fg:#1d1d1f;--mut:#6e6e73;--line:#e3e3e8;--acc:#0a66d8;--acc2:#7c3aed;--ok:#1a7f37;--warn:#b45309;--bad:#c62828;--soft:#eef3fb;--code:#0f1115;--codefg:#e6e6e6;--shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.04)}
-@media (prefers-color-scheme:dark){:root{--bg:#0d0d0f;--card:#17171a;--fg:#f5f5f7;--mut:#a1a1a6;--line:#2a2a2e;--acc:#4c9dff;--acc2:#a78bfa;--ok:#3fb950;--warn:#f0a43a;--bad:#ff6b6b;--soft:#1c2433;--code:#0a0a0c;--codefg:#dcdcdc;--shadow:none}}
+:root{--bg:#f5f5f7;--card:#fff;--fg:#1d1d1f;--mut:#6e6e73;--line:#e3e3e8;--acc:#0a66d8;--acc2:#7c3aed;--acc3:#0f9d8a;--ok:#1a7f37;--warn:#b45309;--bad:#c62828;--soft:#eef3fb;--code:#0f1115;--codefg:#e6e6e6;--shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.04)}
+@media (prefers-color-scheme:dark){:root{--bg:#0d0d0f;--card:#17171a;--fg:#f5f5f7;--mut:#a1a1a6;--line:#2a2a2e;--acc:#4c9dff;--acc2:#a78bfa;--acc3:#2dd4bf;--ok:#3fb950;--warn:#f0a43a;--bad:#ff6b6b;--soft:#1c2433;--code:#0a0a0c;--codefg:#dcdcdc;--shadow:none}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
-header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
-.bar{max-width:1180px;margin:auto;padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.bar{max-width:1180px;margin:auto;padding:10px 16px 0;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+nav{max-width:1180px;margin:auto;padding:0 16px;display:flex;gap:4px;overflow-x:auto}
+nav button{border:0;background:none;border-bottom:2px solid transparent;border-radius:0;padding:10px 12px;color:var(--mut)}
+nav button.on{color:var(--fg);border-color:var(--acc)}
 h1{font-size:18px;margin:0;font-weight:650}
-h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:28px 0 10px;font-weight:600}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:26px 0 10px;font-weight:600}
+h2 span{text-transform:none;letter-spacing:0;font-weight:400}
 a{color:var(--acc);text-decoration:none}
 main{max-width:1180px;margin:auto;padding:4px 16px 120px}
+section[data-tab]{display:none}section[data-tab].on{display:block}
 .chip{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--mut);white-space:nowrap}
 .chip.ok{color:var(--ok)}.chip.bad{color:var(--bad)}.chip.warn{color:var(--warn)}
 .sp{flex:1}
@@ -22,12 +27,16 @@ button{font:inherit;border:1px solid var(--line);background:var(--card);color:va
 button:hover{border-color:var(--acc)}button:disabled{opacity:.5;cursor:default}
 button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
 button.danger{color:var(--bad)}button.danger.pri{background:var(--bad);border-color:var(--bad);color:#fff}
-input,select{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);padding:7px 9px;border-radius:8px;min-width:0}
+input,select,textarea{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);padding:7px 9px;border-radius:8px;min-width:0}
 input[type=range]{padding:0;border:0}
 .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.g2{display:grid;gap:14px;grid-template-columns:2fr 1fr}
+.g3{display:grid;gap:14px;grid-template-columns:repeat(3,1fr)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow);min-width:0}
 .card h3{margin:0 0 8px;font-size:13px;color:var(--mut);font-weight:550}
-.big{font-size:28px;font-weight:650;letter-spacing:-.02em}
+.big{font-size:28px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kpis{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.kpi .big{font-size:24px}
 .mut{color:var(--mut)}.small{font-size:12px}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
 .meter{height:8px;background:var(--soft);border-radius:99px;overflow:hidden;margin:10px 0 4px}
@@ -37,106 +46,190 @@ input[type=range]{padding:0;border:0}
 table{width:100%;border-collapse:collapse;font-size:13px}
 td,th{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 th{color:var(--mut);font-weight:550}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
-.chart{display:flex;align-items:flex-end;gap:6px;height:170px;padding-top:8px;overflow-x:auto}
-.col{flex:1 0 34px;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:34px}
+.chart{display:flex;align-items:flex-end;gap:6px;height:170px;padding-top:8px}
+.col{flex:1 1 0;min-width:30px;display:flex;flex-direction:column;align-items:center;gap:4px}
 .col .b{width:100%;border-radius:5px 5px 0 0;background:var(--acc);min-height:2px}
 .col.beta .b{background:var(--acc2)}
 .col span{font-size:11px;color:var(--mut);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
-.col{flex:1 1 0;min-width:30px}
+.hbar{display:grid;grid-template-columns:minmax(90px,38%) 1fr 54px;gap:8px;align-items:center;font-size:13px;margin:6px 0}
+.hbar .t{height:10px;background:var(--soft);border-radius:99px;overflow:hidden}.hbar .t i{display:block;height:100%;background:var(--acc3);border-radius:99px}
+.hbar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 4px 0 10px;vertical-align:0}
+svg text{fill:var(--mut);font-size:11px}
 .actions{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
-.act{display:flex;flex-direction:column;gap:8px}
-.act .row{margin:0}
-.act label{font-size:12px;color:var(--mut)}
+.act{display:flex;flex-direction:column;gap:8px}.act .row{margin:0}
+label{font-size:12px;color:var(--mut)}
 .danger-zone{border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
+.preview{border:1px dashed var(--line);border-radius:10px;padding:10px;font-size:13px}
+.preview .term{background:var(--code);color:var(--codefg);font:12px/1.5 ui-monospace,Menlo,monospace;padding:8px 10px;border-radius:6px;white-space:pre-wrap;word-break:break-word;margin-top:4px}
+.preview .app{display:flex;gap:10px;align-items:flex-start;background:var(--soft);border-radius:10px;padding:10px;margin-top:8px}
+.preview .app b{display:block}
+ol.steps{margin:4px 0 0;padding-left:18px;font-size:13px}ol.steps li{margin:3px 0}
+.set{display:grid;grid-template-columns:minmax(160px,240px) 1fr;gap:6px 16px;align-items:start;padding:12px 0;border-bottom:1px solid var(--line)}
+.set:last-child{border-bottom:0}
+.set .help{font-size:12px;color:var(--mut);grid-column:2}
+.set .changed{color:var(--warn);font-size:12px}
+.checks{display:flex;gap:10px;flex-wrap:wrap}.checks label{color:var(--fg);font-size:13px;display:flex;gap:4px;align-items:center}
+.ro td{white-space:normal;word-break:break-all}.ro td:first-child{white-space:nowrap;color:var(--mut)}
 #console{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--code);color:var(--codefg);border-top:1px solid var(--line);max-height:46vh;display:flex;flex-direction:column;transform:translateY(calc(100% - 38px));transition:transform .2s}
-#console.open{transform:none}
-body.con main{padding-bottom:50vh}
+#console.open{transform:none}body.con main{padding-bottom:50vh}
 #console .head{display:flex;gap:10px;align-items:center;padding:8px 16px;font:12px ui-monospace,Menlo,monospace;cursor:pointer}
 #console pre{margin:0;padding:8px 16px 16px;overflow:auto;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap}
 .dot{width:8px;height:8px;border-radius:50%;background:#777}.dot.run{background:#f0a43a;animation:p 1s infinite}.dot.ok{background:#3fb950}.dot.bad{background:#ff6b6b}
 @keyframes p{50%{opacity:.3}}
-dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--fg);max-width:560px;width:calc(100% - 32px);padding:20px}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--fg);max-width:600px;width:calc(100% - 32px);padding:20px}
 dialog::backdrop{background:rgba(0,0,0,.45)}
 dialog code{display:block;background:var(--code);color:var(--codefg);padding:10px;border-radius:8px;font:12px ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all;margin:10px 0}
-.err{color:var(--bad);font-size:12px;min-height:1em}
+.empty{padding:22px;text-align:center;color:var(--mut)}
 .skel{color:var(--mut)}
-.grid.dl{grid-template-columns:2fr 1fr}
-@media (max-width:760px){.grid.dl{grid-template-columns:1fr}}
+@media (max-width:760px){.g2,.g3{grid-template-columns:1fr}.set{grid-template-columns:1fr}.set .help{grid-column:1}}
 @media (max-width:600px){.big{font-size:24px}.actions{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<header><div class="bar">
-  <h1 id="title">shipcrate</h1><span id="chips" class="row" style="margin:0"></span><span class="sp"></span>
-  <span id="updated" class="mut small"></span><button id="refresh">Refresh</button>
-</div></header>
+<header>
+  <div class="bar"><h1 id="title">shipcrate</h1><span id="chips" class="row" style="margin:0"></span><span class="sp"></span>
+    <span id="updated" class="mut small"></span><button id="refresh">Refresh</button></div>
+  <nav id="tabs"><button data-t="overview" class="on">Overview</button><button data-t="stats">Stats</button><button data-t="actions">Actions</button><button data-t="settings">Settings</button></nav>
+</header>
 <main>
+<section data-tab="overview" class="on">
   <h2>Live now</h2>
   <div class="grid" id="cards"><div class="card skel">Loading from GitHub…</div></div>
-
-  <h2>Downloads</h2>
-  <div class="grid dl">
-    <div class="card"><h3>Per version <span class="legend small mut"><i style="background:var(--acc)"></i>stable<i style="background:var(--acc2)"></i>beta</span></h3><div id="chart" class="chart skel">Loading…</div><div id="statsnote" class="mut small"></div></div>
-    <div class="card"><h3 id="plathead">Newest release by platform</h3><div id="platforms" class="skel">…</div></div>
-  </div>
-
   <h2>Releases</h2>
   <div class="card" style="overflow-x:auto"><div id="releases" class="skel">…</div></div>
+</section>
 
-  <h2>Check and preview <span class="mut" style="text-transform:none;letter-spacing:0">· changes nothing</span></h2>
+<section data-tab="stats">
+  <div class="row" style="margin-top:18px"><b>Downloads</b><span class="mut small" id="basenote"></span><span class="sp"></span>
+    <button id="bset">Set baseline…</button><button id="bclear">Clear baseline…</button><button id="csv">Export CSV</button></div>
+  <div class="kpis" style="margin-top:12px" id="kpis"></div>
+  <h2>Per version <span class="legend small mut"><i style="background:var(--acc)"></i>stable<i style="background:var(--acc2)"></i>beta</span></h2>
+  <div class="card"><div id="chart" class="chart skel">Loading…</div></div>
+  <div class="g3" style="margin-top:14px">
+    <div class="card"><h3>By platform (all versions)</h3><div id="plat" class="skel">…</div></div>
+    <div class="card"><h3>Stable vs beta</h3><div id="donut" class="skel">…</div></div>
+    <div class="card"><h3>Update checks per release</h3><div id="checks" class="skel">…</div></div>
+  </div>
+  <h2>Over time <span id="histnote"></span></h2>
+  <div class="card"><div class="row" style="margin:0 0 8px"><label>Range <select id="range"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="0">all</option></select></label>
+    <label>Show <select id="hmode"><option value="new">new downloads per day</option><option value="total">running total</option><option value="checks">update checks per day</option></select></label></div>
+    <div id="hist" class="skel">Loading…</div></div>
+  <h2>Rollout of the newest release</h2>
+  <div class="card"><div id="rcurve" class="skel">…</div></div>
+  <p class="mut small">GitHub's public download counts: no tracking and nothing added to your app. Two Macs count as two; Homebrew installs aren't counted.</p>
+</section>
+
+<section data-tab="actions">
+  <h2>Check and preview <span>· changes nothing</span></h2>
   <div class="actions">
     <div class="card act"><h3>Quality gate</h3><span class="mut small">The same checks as your git hooks and CI.</span>
       <div class="row"><button data-run="check" data-args='{"quick":true}'>Quick check</button><button data-run="check">Full check</button><button data-run="doctor">Doctor</button></div></div>
     <div class="card act"><h3>Next release</h3><span class="mut small">Suggested version and notes from your commits, then a full dry run.</span>
-      <div class="row"><button data-run="changelog">Suggest changelog</button><input id="pv" placeholder="1.2.3 or 1.2.3-beta.1" size="18"><button id="preview">Preview release</button></div>
+      <div class="row"><button id="suggest">Suggest changelog</button><input id="pv" placeholder="1.2.3 or 1.2.3-beta.1" size="16"><button id="preview">Preview release</button></div>
       <span class="mut small">Publishing stays in the terminal: <code>sh scripts/release.sh X.Y.Z</code></span></div>
-    <div class="card act"><h3>Webhook</h3><span class="mut small">Send signed sample events to your receiver (uses RELEASE_WEBHOOK_SECRET from the environment that started ui).</span>
+    <div class="card act"><h3>Webhook</h3><span class="mut small">Send signed sample events to your receiver (RELEASE_WEBHOOK_SECRET from the environment that started ui).</span>
       <div class="row"><input id="wu" placeholder="https://… or http://localhost:8787" style="flex:1"><select id="we"><option>all</option><option>release</option><option>security</option><option>announcement</option><option>yank</option></select><button id="webhook">Test</button></div></div>
-    <div class="card act"><h3>Download table</h3><span class="mut small">The text report from <code>shipcrate stats</code>.</span>
-      <div class="row"><button data-run="stats">Show stats</button></div></div>
+    <div class="card act"><h3>Reports</h3><span class="mut small">Text reports, as in the terminal.</span>
+      <div class="row"><button data-run="stats">Download table</button><button data-run="doctor">Setup report</button></div></div>
   </div>
 
-  <h2>Change what users see <span class="mut" style="text-transform:none;letter-spacing:0">· shows the exact command and asks first</span></h2>
+  <h2>Change what users see <span>· shows the exact command and asks first</span></h2>
   <div class="actions">
-    <div class="card act danger-zone"><h3>Rollout</h3><span class="mut small" id="rollnow">Offer the newest release to a share of installed copies.</span>
-      <div class="row"><input type="range" id="rp" min="0" max="100" step="5" value="100" style="flex:1"><b id="rpv">100%</b></div>
-      <div class="row"><label>grow to 100% over <input id="rd" type="number" min="0" max="365" value="0" style="width:70px"> days (0 = fixed)</label><span class="sp"></span><button id="rollout" class="pri">Apply…</button></div></div>
-    <div class="card act danger-zone"><h3>Announcement</h3><span class="mut small">A message every copy shows once at its next daily check. No new version.</span>
+    <div class="card act danger-zone"><h3>Rollout</h3><span class="mut small" id="rollnow"></span>
+      <div class="row"><label style="min-width:72px">start at</label><input type="range" id="rp" min="0" max="100" step="5" value="100" style="flex:1"><b id="rpv" style="min-width:42px">100%</b></div>
+      <div class="row"><label style="min-width:72px">grow over</label><input type="range" id="rd" min="0" max="30" step="1" value="0" style="flex:1"><b id="rdv" style="min-width:42px">fixed</b></div>
+      <div id="rprev"></div>
+      <div class="row"><span class="sp"></span><button id="rollout" class="pri">Apply…</button></div></div>
+    <div class="card act danger-zone"><h3>Announcement</h3><span class="mut small">Every copy shows it once at its next daily check. No new version.</span>
       <input id="am" maxlength="300" placeholder="Maintenance tonight 22:00–23:00 UTC">
       <div class="row"><select id="al"><option>info</option><option>warning</option><option>security</option></select><input id="au" placeholder="https:// link (optional)" style="flex:1"><input id="ab" placeholder="below version" size="11"></div>
+      <div class="preview"><span class="mut small">How it looks · in the terminal</span><div class="term" id="apcli"></div><span class="mut small">· in the app</span><div class="app"><span id="apicon">ℹ️</span><div><b id="aptitle"></b><span id="apmsg"></span></div></div></div>
       <div class="row"><span class="sp"></span><button id="aclear" class="danger">Clear current…</button><button id="announce" class="pri">Send…</button></div></div>
-    <div class="card act danger-zone"><h3>Yank a release</h3><span class="mut small">Pull a bad version: copies on it are sent back to a good one. Files stay downloadable.</span>
+    <div class="card act danger-zone"><h3>Yank a release</h3><span class="mut small">Pull a bad version and send its users back to a good one.</span>
       <div class="row"><select id="yv"></select><span class="mut">→</span><input id="yt" placeholder="back to (default: previous)" style="flex:1"></div>
       <input id="yr" maxlength="200" placeholder="reason (shown to users)">
+      <ol class="steps" id="ysteps"></ol>
       <div class="row"><span class="sp"></span><button id="yank" class="danger pri">Yank…</button></div></div>
   </div>
+</section>
+
+<section data-tab="settings">
+  <h2>Release settings <span>· release.conf, shown as a diff before saving</span></h2>
+  <div class="card"><div id="setform" class="skel">Loading…</div>
+    <div class="row"><span class="mut small" id="setnote"></span><span class="sp"></span><button id="setreset">Reset</button><button id="setsave" class="pri" disabled>Review changes…</button></div></div>
+  <div class="g2" style="margin-top:14px">
+    <div class="card"><h3>Signed updates</h3><div id="signed"></div></div>
+    <div class="card"><h3>Keep shipcrate's files current</h3><span class="mut small">Refresh shipcrate's own scripts from the installed release. Your edited files are kept.</span>
+      <div class="row"><button id="sync">Run shipcrate sync…</button></div></div>
+  </div>
+  <h2>Read-only here <span>· edit these in release.conf</span></h2>
+  <div class="card" style="overflow-x:auto"><table class="ro" id="ro"></table></div>
+  <h2>This page</h2>
+  <div class="card"><div class="row" style="margin:0"><label>Open on <select id="ptab"><option>overview</option><option>stats</option><option>actions</option><option>settings</option></select></label>
+    <label><input type="checkbox" id="pauto"> refresh every 60 s</label></div><span class="mut small">Saved in this browser only.</span></div>
+</section>
 </main>
 
 <div id="console"><div class="head" id="chead"><span class="dot" id="cdot"></span><span id="ctitle">Output</span><span class="sp"></span><span class="mut">click to show / hide</span></div><pre id="cout">Run a check or an action: its output appears here.</pre></div>
 
-<dialog id="dlg"><h3 style="margin:0">Run this?</h3><p id="dwhat" class="mut" style="margin:8px 0 0"></p><code id="dcmd"></code>
-  <div class="err" id="derr"></div>
+<dialog id="dlg"><h3 style="margin:0" id="dhead">Run this?</h3><p id="dwhat" class="mut" style="margin:8px 0 0"></p><code id="dcmd"></code>
   <div class="row" style="justify-content:flex-end"><button id="dno">Cancel</button><button id="dyes" class="pri">Run it</button></div></dialog>
 
 <script>
 "use strict";
-const T = (location.hash.match(/t=([0-9a-f]+)/) || [])[1] || sessionStorage.getItem("t") || "";
+const T = (location.hash.match(/t=([0-9a-f]+)/) || [])[1] || (() => { try { return sessionStorage.getItem("t"); } catch { return ""; } })() || "";
 try { sessionStorage.setItem("t", T); } catch {}
-history.replaceState(null, "", location.pathname);           // keep the token out of the address bar
+history.replaceState(null, "", location.pathname);           // keep the key out of the address bar
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pref = (k, v) => { try { if (v === undefined) return localStorage.getItem("sc." + k); localStorage.setItem("sc." + k, v); } catch { return null; } };
+const fmt = n => Number(n || 0).toLocaleString();
 const api = async (p, body) => {
   const r = await fetch("/api/" + p, body ? { method: "POST", headers: { "Content-Type": "application/json", "X-Token": T }, body: JSON.stringify(body) } : { headers: { "X-Token": T } });
   const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.statusText); return j;
 };
 const ago = iso => { if (!iso) return ""; const s = (Date.now() - Date.parse(iso)) / 1000;
   return s < 3600 ? Math.max(1, Math.round(s / 60)) + " min ago" : s < 86400 ? Math.round(s / 3600) + " h ago" : Math.round(s / 86400) + " days ago"; };
-const nowPct = m => { if (!m) return 100; const start = typeof m.rollout === "number" ? m.rollout : (m.rollout_days > 0 ? 0 : 100);
-  if (!m.rollout_days || !m.published) return start; const f = Math.min(1, Math.max(0, (Date.now() - Date.parse(m.published)) / (m.rollout_days * 864e5)));
-  return Math.min(100, Math.floor(start + (100 - start) * f)); };
-let O = null;
+const startPct = m => typeof m.rollout === "number" ? m.rollout : (m.rollout_days > 0 ? 0 : 100);
+const pctAt = (m, t) => { if (!m) return 100; const s = startPct(m); if (!m.rollout_days || !m.published) return s;
+  const f = Math.min(1, Math.max(0, (t - Date.parse(m.published)) / (m.rollout_days * 864e5))); return Math.min(100, Math.floor(s + (100 - s) * f)); };
+let O = null, S = null, H = null, SET = null;
 
+function tab(t) { document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
+  document.querySelectorAll("section[data-tab]").forEach(s => s.classList.toggle("on", s.dataset.tab === t)); }
+$("tabs").onclick = e => { const t = e.target.dataset.t; if (t) tab(t); };
+
+// ---------- small SVG charts (no libraries)
+function lineChart(points, { h = 180, fmtY = fmt, color = "var(--acc)", marker } = {}) {
+  if (!points.length) return '<div class="empty">No data in this range.</div>';
+  const W = 760, P = { l: 44, r: 12, t: 10, b: 24 }, max = Math.max(1, ...points.map(p => p.y));
+  const x = i => P.l + (points.length === 1 ? (W - P.l - P.r) / 2 : i * (W - P.l - P.r) / (points.length - 1)), y = v => P.t + (h - P.t - P.b) * (1 - v / max);
+  const d = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.y).toFixed(1)}`).join("");
+  const area = `${d}L${x(points.length - 1).toFixed(1)},${h - P.b}L${x(0).toFixed(1)},${h - P.b}Z`;
+  const ticks = [0, .5, 1].map(f => `<line x1="${P.l}" x2="${W - P.r}" y1="${y(max * f)}" y2="${y(max * f)}" stroke="var(--line)"/><text x="${P.l - 6}" y="${y(max * f) + 4}" text-anchor="end">${esc(fmtY(Math.round(max * f)))}</text>`).join("");
+  const step = Math.max(1, Math.ceil(points.length / 7));
+  const xl = points.map((p, i) => i % step === 0 || i === points.length - 1 ? `<text x="${x(i)}" y="${h - 6}" text-anchor="middle">${esc(p.label)}</text>` : "").join("");
+  const dots = points.length <= 40 ? points.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.y)}" r="3" fill="${color}"><title>${esc(p.label)}: ${esc(fmtY(p.y))}</title></circle>`).join("") : "";
+  const mk = marker != null ? `<line x1="${x(marker)}" x2="${x(marker)}" y1="${P.t}" y2="${h - P.b}" stroke="var(--warn)" stroke-dasharray="4 3"/><text x="${x(marker) + 4}" y="${P.t + 10}" style="fill:var(--warn)">now</text>` : "";
+  return `<svg viewBox="0 0 ${W} ${h}" width="100%" role="img">${ticks}<path d="${area}" fill="${color}" opacity=".12"/><path d="${d}" fill="none" stroke="${color}" stroke-width="2"/>${dots}${mk}${xl}</svg>`;
+}
+function donut(parts) {
+  const total = parts.reduce((a, p) => a + p.v, 0); if (!total) return '<div class="empty">No downloads yet.</div>';
+  let a0 = -Math.PI / 2; const R = 54, r = 34, c = 70;
+  const pt = (a, rr) => `${(c + rr * Math.cos(a)).toFixed(2)},${(c + rr * Math.sin(a)).toFixed(2)}`;
+  const arcs = parts.filter(p => p.v).map(p => {
+    if (p.v === total) return `<circle cx="${c}" cy="${c}" r="${(R + r) / 2}" fill="none" stroke="${p.c}" stroke-width="${R - r}"><title>${esc(p.k)}: ${fmt(p.v)}</title></circle>`;
+    const a1 = a0 + 2 * Math.PI * p.v / total, big = a1 - a0 > Math.PI ? 1 : 0;
+    const path = `M${pt(a0, R)}A${R},${R} 0 ${big} 1 ${pt(a1, R)}L${pt(a1, r)}A${r},${r} 0 ${big} 0 ${pt(a0, r)}Z`;
+    a0 = a1; return `<path d="${path}" fill="${p.c}"><title>${esc(p.k)}: ${fmt(p.v)}</title></path>`; }).join("");
+  return `<div style="display:flex;gap:14px;align-items:center"><svg viewBox="0 0 140 140" width="120">${arcs}<text x="70" y="75" text-anchor="middle" style="font-size:16px;fill:var(--fg)">${fmt(total)}</text></svg>
+    <div>${parts.map(p => `<div class="small"><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${p.c};margin-right:6px"></i>${esc(p.k)} <b>${fmt(p.v)}</b> <span class="mut">${Math.round(100 * p.v / total)}%</span></div>`).join("")}</div></div>`;
+}
+const hbars = (items, color) => { const max = Math.max(1, ...items.map(i => i.v));
+  return items.length ? items.map(i => `<div class="hbar"><span title="${esc(i.k)}">${esc(i.k)}</span><div class="t"><i style="width:${100 * i.v / max}%;${color ? "background:" + color : ""}"></i></div><b style="text-align:right">${fmt(i.v)}</b></div>`).join("") : '<div class="empty">Nothing yet.</div>'; };
+
+// ---------- overview
 function card(title, inner) { return `<div class="card"><h3>${title}</h3>${inner}</div>`; }
 function manifestCard(title, m, beta) {
   if (!m) {
@@ -145,21 +238,19 @@ function manifestCard(title, m, beta) {
       <div class="note warning">This release has no latest.json (it came before shipcrate), so its copies don't get update checks, rollout or announcements. They start with the next stable release.</div>`);
     return card(title, `<div class="big mut">—</div><div class="mut small">${beta ? "No beta channel yet (it appears with the first release)." : O.gh ? "No release yet." : "gh isn't signed in: run gh auth login"}</div>`);
   }
-  const pct = nowPct(m);
+  const pct = pctAt(m, Date.now());
   let h = `<div class="big">${esc(m.version)}</div><div class="mut small">${esc(m.tag)} · ${ago(m.published)}${m.security ? ' · <b style="color:var(--bad)">security</b>' : ""}</div>`;
-  if (!beta) h += `<div class="meter"><i style="width:${pct}%"></i></div><div class="small">${pct}% of copies are offered it${m.rollout_days ? ` · growing to 100% over ${m.rollout_days} days` : ""}</div>`;
+  if (!beta) h += `<div class="meter"><i style="width:${pct}%"></i></div><div class="small">${pct}% of copies are offered it${m.rollout_days ? ` · growing to 100% over ${esc(m.rollout_days)} days` : ""}</div>`;
   if (m.yanked && m.yanked.length) h += `<div class="note warning">Yanked: ${m.yanked.map(esc).join(", ")}</div>`;
   if (m.announcement) h += `<div class="note ${esc(m.announcement.level)}">📣 ${esc(m.announcement.message)}${m.announcement.below ? ` <span class="mut">(below ${esc(m.announcement.below)})</span>` : ""}</div>`;
   h += `<div class="row small mut">${Object.keys(m.assets || {}).map(p => `<span class="chip">${esc(p)}</span>`).join("")}</div>`;
   return card(title, h);
 }
-
 async function load() {
   $("refresh").disabled = true;
   try {
     O = await api("overview");
-    $("title").textContent = O.product || "shipcrate";
-    document.title = (O.product || "shipcrate") + " · shipcrate ui";
+    $("title").textContent = O.product || "shipcrate"; document.title = (O.product || "shipcrate") + " · shipcrate ui";
     $("chips").innerHTML = [`<a class="chip" href="https://github.com/${esc(O.repo)}" target="_blank" rel="noopener">${esc(O.repo)}</a>`,
       `<span class="chip">${esc(O.type)} · ${esc(O.lang)}</span>`, `<span class="chip">shipcrate ${esc(O.shipcrate || "?")}</span>`,
       `<span class="chip ${O.signed ? "ok" : "warn"}">${O.signed ? "signed updates" : "unsigned updates"}</span>`,
@@ -167,89 +258,211 @@ async function load() {
     const g = O.git;
     $("cards").innerHTML = manifestCard("Stable (latest.json)", O.latest) + manifestCard("Beta channel (beta.json)", O.beta, true) +
       card("This folder", `<div class="big">${esc(g.branch || "no git")}</div><div class="mut small">${esc(g.head)}</div>
-        <div class="row small"><span class="chip">${g.since} commit(s) since ${esc(g.lastTag || "first release")}</span><span class="chip ${g.dirty ? "warn" : "ok"}">${g.dirty ? g.dirty + " uncommitted" : "clean"}</span></div>`) +
-      card("Downloads", `<div class="big" id="dltotal">…</div><div class="mut small" id="dlsub">counting from GitHub</div>`);
-    const rp = nowPct(O.latest); $("rp").value = rp; $("rpv").textContent = rp + "%";
-    $("rollnow").textContent = O.latest ? `Now: ${rp}% of copies are offered ${O.latest.version}.` : "The newest stable release has no latest.json yet (it came before shipcrate): rollout and announcements start with the next stable release.";
-    for (const id of ["rollout", "announce", "aclear"]) $(id).dataset.off = O.latest ? "" : "1";
+        <div class="row small"><span class="chip">${esc(g.since)} commit(s) since ${esc(g.lastTag || "first release")}</span><span class="chip ${g.dirty ? "warn" : "ok"}">${g.dirty ? esc(g.dirty) + " uncommitted" : "clean"}</span></div>`) +
+      card("Downloads", `<div class="big" id="dltotal">…</div><div class="mut small" id="dlsub">counting from GitHub</div><div class="row"><button id="openstats">Open stats</button></div>`);
+    $("openstats").onclick = () => tab("stats");
     const rel = (O.releases || []).filter(r => r.tagName !== "channel");
     $("releases").innerHTML = rel.length ? `<table><tr><th>Release</th><th>Kind</th><th>Published</th></tr>${rel.map(r => `<tr><td><a href="https://github.com/${esc(O.repo)}/releases/tag/${esc(r.tagName)}" target="_blank" rel="noopener">${esc(r.name || r.tagName)}</a></td><td>${r.isLatest ? '<span class="chip ok">latest</span>' : r.isPrerelease ? '<span class="chip">pre-release</span>' : ""}${/YANKED/.test(r.name) ? ' <span class="chip bad">yanked</span>' : ""}</td><td class="mut">${ago(r.publishedAt)}</td></tr>`).join("")}</table>` : '<span class="mut">No releases yet.</span>';
-    for (const id of ["rollout", "announce", "aclear"]) $(id).disabled = !O.latest;
     $("yv").innerHTML = rel.filter(r => /^v\d/.test(r.tagName)).map(r => `<option>${esc(r.tagName.slice(1))}</option>`).join("");
-    if (!$("pv").value && O.latest) $("pv").placeholder = "after " + O.latest.version;
+    if (O.latest) $("pv").placeholder = "after " + O.latest.version;
+    for (const id of ["rollout", "announce", "aclear"]) { $(id).dataset.off = O.latest ? "" : "1"; $(id).disabled = !O.latest; }
+    $("rp").value = O.latest ? startPct(O.latest) : 100; $("rd").value = O.latest && O.latest.rollout_days ? Math.min(30, O.latest.rollout_days) : 0;
     $("updated").textContent = "updated " + new Date().toLocaleTimeString();
-    loadStats();
+    rolloutPreview(); annPreview(); yankSteps();
+    loadStats(); loadHistory();
   } catch (e) { $("cards").innerHTML = `<div class="card"><b style="color:var(--bad)">Couldn't load:</b> ${esc(e.message)}</div>`; }
   $("refresh").disabled = false;
 }
 
+// ---------- stats
+const isArchive = f => !/\.(json|sig|sha256|sigstore\.json|spdx\.json|txt)$|SHA256SUMS/i.test(f);
+const platformOf = (f, tag) => f.split(String(tag).replace(/^v/, "")).join("").replace(/\.(tar\.gz|tgz|zip|dmg|pkg)$/i, "").replace(/^[-_.]+|[-_.]+$/g, "") || f;
 async function loadStats() {
   try {
-    const s = await api("stats");
-    if (!s.ok) { $("chart").textContent = "Couldn't read downloads: " + s.error; return; }
-    const rows = s.rows.filter(r => r.tag !== "channel" && !/\.(json|sig|sha256|sigstore\.json|spdx\.json)$|SHA256SUMS/.test(r.file));
-    const checks = s.rows.filter(r => /latest\.json$|beta\.json$/.test(r.file)).reduce((a, r) => a + r.count, 0);
+    S = await api("stats");
+    if (!S.ok) { $("chart").textContent = "Couldn't read downloads: " + S.error; $("dltotal").textContent = "—"; $("dlsub").textContent = S.error; return; }
+    const rows = S.rows.filter(r => r.tag !== "channel" && isArchive(r.file));
+    const checkRows = S.rows.filter(r => /^(latest|beta)\.json$/.test(r.file));
+    const total = rows.reduce((a, r) => a + r.count, 0), stable = rows.filter(r => !r.beta).reduce((a, r) => a + r.count, 0);
+    const checks = checkRows.reduce((a, r) => a + r.count, 0);
     const by = {}; for (const r of rows) { by[r.tag] ??= { tag: r.tag, beta: r.beta, n: 0, at: r.at }; by[r.tag].n += r.count; }
-    const vs = Object.values(by).sort((a, b) => a.at.localeCompare(b.at)).slice(-10);
-    const max = Math.max(1, ...vs.map(v => v.n)), total = rows.reduce((a, r) => a + r.count, 0);
-    $("chart").classList.remove("skel");
-    $("chart").innerHTML = vs.length ? vs.map(v => `<div class="col ${v.beta ? "beta" : ""}" title="${esc(v.tag)}: ${v.n} downloads"><span>${v.n}</span><div class="b" style="height:${Math.round(120 * v.n / max)}px"></div><span>${esc(v.tag.replace(/^v/, "").replace(/-beta\.?/, " β").replace(/-rc\.?/, " rc"))}</span></div>`).join("") : '<span class="mut">No downloads yet.</span>';
-    $("statsnote").textContent = (s.baseline ? "Your own downloads before the baseline are left out. " : "") + "GitHub's public counts: no tracking.";
-    const stable = rows.filter(r => !r.beta).reduce((a, r) => a + r.count, 0);
-    $("dltotal").textContent = total.toLocaleString();
-    $("dlsub").textContent = `${stable.toLocaleString()} stable · ${(total - stable).toLocaleString()} beta · ${checks.toLocaleString()} update checks`;
+    const vs = Object.values(by).sort((a, b) => String(a.at).localeCompare(String(b.at)));
     const newest = vs[vs.length - 1];
-    if (newest) { $("plathead").textContent = `${newest.tag} by file`;
-      const per = rows.filter(r => r.tag === newest.tag).sort((a, b) => b.count - a.count);
-      $("platforms").classList.remove("skel");
-      $("platforms").innerHTML = `<table>${per.map(r => `<tr><td>${esc(r.file)}</td><td class="n">${r.count}</td></tr>`).join("")}</table>`; }
+    $("dltotal").textContent = fmt(total); $("dlsub").textContent = `${fmt(stable)} stable · ${fmt(total - stable)} beta · ${fmt(checks)} update checks`;
+    $("basenote").textContent = S.baseline ? "· your own downloads before the baseline are left out" : "";
+    $("kpis").innerHTML = [["Downloads", fmt(total)], ["Stable", fmt(stable)], ["Beta", fmt(total - stable)], ["Update checks", fmt(checks)],
+      ["Beta share", total ? Math.round(100 * (total - stable) / total) + "%" : "—"], [newest ? "Newest (" + newest.tag + ")" : "Newest", newest ? fmt(newest.n) : "—"]]
+      .map(([k, v]) => `<div class="card kpi"><h3>${esc(k)}</h3><div class="big">${esc(v)}</div></div>`).join("");
+    const last = vs.slice(-12), max = Math.max(1, ...last.map(v => v.n));
+    $("chart").classList.remove("skel");
+    $("chart").innerHTML = last.length ? last.map(v => `<div class="col ${v.beta ? "beta" : ""}" title="${esc(v.tag)}: ${fmt(v.n)} downloads"><span>${fmt(v.n)}</span><div class="b" style="height:${Math.round(120 * v.n / max)}px"></div><span>${esc(v.tag.replace(/^v/, "").replace(/-beta\.?/, " β").replace(/-rc\.?/, " rc"))}</span></div>`).join("") : '<div class="empty" style="width:100%">No downloads yet.</div>';
+    const pl = {}; for (const r of rows) { const k = platformOf(r.file, r.tag); pl[k] = (pl[k] || 0) + r.count; }
+    $("plat").classList.remove("skel"); $("plat").innerHTML = hbars(Object.entries(pl).map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v).slice(0, 8));
+    $("donut").classList.remove("skel"); $("donut").innerHTML = donut([{ k: "stable", v: stable, c: "var(--acc)" }, { k: "beta", v: total - stable, c: "var(--acc2)" }]);
+    const ck = {}; for (const r of checkRows) { const k = r.tag === "channel" ? "beta channel" : r.tag; ck[k] = (ck[k] || 0) + r.count; }
+    $("checks").classList.remove("skel"); $("checks").innerHTML = hbars(Object.entries(ck).map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v).slice(0, 8), "var(--acc2)");
   } catch (e) { $("chart").textContent = e.message; }
 }
+async function loadHistory() {
+  try { H = await api("history"); } catch (e) { H = { ok: false, reason: e.message }; }
+  drawHistory(); drawRolloutCurve();
+}
+function drawHistory() {
+  const on = SET && SET.editable.find(s => s.key === "STATS_SNAPSHOTS");
+  $("hist").classList.remove("skel");
+  if (!H || !H.ok || !H.rows.length) {
+    $("histnote").textContent = "";
+    $("hist").innerHTML = `<div class="empty">No daily snapshots yet${H && H.reason && H.reason !== "no snapshots yet" ? " (" + esc(H.reason) + ")" : ""}.<br>
+      ${on && on.value === "on" ? "Snapshots are on: the first one appears after the daily Stats workflow runs (run shipcrate sync, commit and push, then wait a day)." : "Turn on daily snapshots in Settings to see downloads per day here."}
+      ${on && on.value !== "on" ? '<div class="row" style="justify-content:center"><button id="toset">Open settings</button></div>' : ""}</div>`;
+    if ($("toset")) $("toset").onclick = () => tab("settings");
+    return;
+  }
+  const mode = $("hmode").value, days = +$("range").value, dates = [...new Set(H.rows.map(r => r.date))].sort();
+  const keep = days ? dates.slice(-days - 1) : dates;
+  const val = d => mode === "checks" ? H.rows.filter(r => r.date === d && /^(latest|beta)\.json$/.test(r.file)).reduce((a, r) => a + r.count, 0)
+    : H.rows.filter(r => r.date === d && r.tag !== "channel" && isArchive(r.file)).reduce((a, r) => a + r.count, 0);
+  const tot = keep.map(val);
+  const pts = mode === "total" ? keep.map((d, i) => ({ label: d.slice(5), y: tot[i] }))
+    : keep.slice(1).map((d, i) => ({ label: d.slice(5), y: Math.max(0, tot[i + 1] - tot[i]) }));
+  $("histnote").textContent = `· ${dates.length} snapshot(s), ${dates[0]} to ${dates[dates.length - 1]}`;
+  $("hist").innerHTML = pts.length ? lineChart(pts, { color: mode === "checks" ? "var(--acc2)" : "var(--acc3)" }) : '<div class="empty">One snapshot so far: per-day numbers start with the second.</div>';
+}
+$("range").onchange = () => { pref("range", $("range").value); drawHistory(); };
+$("hmode").onchange = drawHistory;
+function curve(start, days, published) {
+  const n = Math.max(1, days), pts = []; for (let i = 0; i <= n; i++) pts.push({ label: "day " + i, y: Math.min(100, Math.floor(start + (100 - start) * i / n)) });
+  const marker = published ? Math.min(n, Math.max(0, (Date.now() - Date.parse(published)) / 864e5)) : null;
+  return lineChart(pts, { h: 150, fmtY: v => v + "%", marker });
+}
+function drawRolloutCurve() {
+  const m = O && O.latest; $("rcurve").classList.remove("skel");
+  if (!m) { $("rcurve").innerHTML = '<div class="empty">No latest.json yet: the rollout starts with the next stable release.</div>'; return; }
+  if (!m.rollout_days) { $("rcurve").innerHTML = `<div class="small">${esc(m.version)} is offered to a fixed <b>${pctAt(m, Date.now())}%</b> of copies. A timed rollout (Actions → Rollout) grows it over days.</div>`; return; }
+  $("rcurve").innerHTML = `<div class="small" style="margin-bottom:6px">${esc(m.version)}: ${startPct(m)}% → 100% over ${esc(m.rollout_days)} days · now <b>${pctAt(m, Date.now())}%</b></div>` + curve(startPct(m), m.rollout_days, m.published);
+}
+$("csv").onclick = () => {
+  if (!S || !S.ok) return;
+  const cell = v => /[",\n]/.test(String(v)) || /^[=+\-@]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v;   // quoted; no spreadsheet formulas
+  const lines = ["tag,channel,file,downloads,published"].concat(S.rows.map(r => [r.tag, r.beta ? "beta" : "stable", r.file, r.count, r.at].map(cell).join(",")));
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
+  a.download = `${String(O && O.product || "downloads").replace(/[^\w.-]+/g, "-")}-downloads-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$("bset").onclick = () => ask("baseline", {}, "Treat today's counts as your own test downloads: from now on, stats show only downloads after today. Saved on this computer only; GitHub isn't changed.");
+$("bclear").onclick = () => ask("baseline", { clear: true }, "Show the full download totals again.");
 
-// ---- running things
+// ---------- running things
 let polling = null;
 function showConsole(open) { $("console").classList.toggle("open", open); document.body.classList.toggle("con", open); }
+function say(ok, title, text) { showConsole(true); $("cdot").className = "dot " + (ok ? "ok" : "bad"); $("ctitle").textContent = title; $("cout").textContent = text; }
 $("chead").onclick = () => showConsole(!$("console").classList.contains("open"));
+const jobRunning = () => $("cdot").classList.contains("run");
+function lockButtons(on) { document.querySelectorAll("main button").forEach(b => { if (b.closest("nav")) return; b.disabled = on || !!b.dataset.off; }); if (!on) setSaveState(); }
 async function run(action, args = {}, confirm) {
   try {
     const j = await api("run", { action, args, confirm });
     showConsole(true); $("ctitle").textContent = "$ " + j.command; $("cdot").className = "dot run"; $("cout").textContent = "";
-    document.querySelectorAll("button").forEach(b => b.disabled = b.id !== "refresh" && b.id !== "dno");
-    clearInterval(polling);
+    lockButtons(true); clearInterval(polling);
     polling = setInterval(async () => {
-      const s = await api("job"); const pre = $("cout"), atEnd = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20;
+      let s; try { s = await api("job"); } catch (e) { return; }
+      const pre = $("cout"), atEnd = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20;
       pre.textContent = s.out || "…"; if (atEnd) pre.scrollTop = pre.scrollHeight;
       if (s.done) { clearInterval(polling); $("cdot").className = "dot " + (s.code === 0 ? "ok" : "bad");
-        $("ctitle").textContent = `${s.code === 0 ? "✓" : "✗ exit " + s.code} · $ ${s.command}`;
-        document.querySelectorAll("button").forEach(b => b.disabled = !!b.dataset.off);
-        if (["rollout", "announce", "yank"].includes(s.name)) setTimeout(load, 1500); }
+        $("ctitle").textContent = `${s.code === 0 ? "✓" : "✗ exit " + s.code} · $ ${s.command}`; lockButtons(false);
+        if (["rollout", "announce", "yank", "baseline", "sync"].includes(s.name)) setTimeout(() => { load(); loadSettings(); }, 1200); }
     }, 700);
-  } catch (e) { showConsole(true); $("cdot").className = "dot bad"; $("ctitle").textContent = "Couldn't start"; $("cout").textContent = e.message; }
+  } catch (e) { say(false, "Couldn't start", e.message); }
 }
+function dialog(head, what, code, yes, onYes) { $("dhead").textContent = head; $("dwhat").textContent = what; $("dcmd").textContent = code; $("dyes").textContent = yes;
+  $("dyes").onclick = () => { $("dlg").close(); onYes(); }; $("dlg").showModal(); }
 async function ask(action, args, what) {
-  try {
-    const p = await api("plan", { action, args });
-    $("dwhat").textContent = what; $("dcmd").textContent = p.command; $("derr").textContent = "";
-    $("dyes").onclick = () => { $("dlg").close(); run(action, args, p.command); };
-    $("dlg").showModal();
-  } catch (e) { alert(e.message); }
+  try { const p = await api("plan", { action, args }); dialog("Run this?", what, p.command, "Run it", () => run(action, args, p.command)); }
+  catch (e) { say(false, "Not run", e.message); }
 }
 $("dno").onclick = () => $("dlg").close();
 document.querySelectorAll("[data-run]").forEach(b => b.onclick = () => run(b.dataset.run, b.dataset.args ? JSON.parse(b.dataset.args) : {}));
+$("suggest").onclick = () => run("changelog");
 $("preview").onclick = () => run("preview", { version: $("pv").value.trim() });
 $("webhook").onclick = () => run("webhook", { url: $("wu").value.trim(), event: $("we").value });
-$("rp").oninput = () => $("rpv").textContent = $("rp").value + "%";
+
+function rolloutPreview() {
+  const p = +$("rp").value, d = +$("rd").value; $("rpv").textContent = p + "%"; $("rdv").textContent = d ? d + " d" : "fixed";
+  const v = O && O.latest ? O.latest.version : "the newest release";
+  $("rollnow").textContent = O && O.latest ? `Now: ${pctAt(O.latest, Date.now())}% of copies are offered ${v}.` : "The newest stable release has no latest.json yet (it came before shipcrate): rollout and announcements start with the next stable release.";
+  $("rprev").innerHTML = d ? `<div class="small mut">${p}% today → 100% in ${d} days, on each copy, with no more commands. Day 1: ${Math.floor(p + (100 - p) / d)}%.</div>` + curve(p, d, null)
+    : `<div class="small mut">A fixed ${p}%${p === 100 ? " (everyone; Homebrew moves to it too)" : ""}.</div>`;
+}
+$("rp").oninput = rolloutPreview; $("rd").oninput = rolloutPreview;
 $("rollout").onclick = () => { const p = +$("rp").value, d = +$("rd").value;
-  ask("rollout", { percent: p, days: d || 0 }, d ? `Grow ${O?.latest?.version || "the newest release"} from ${p}% to 100% over ${d} days, on each copy, by itself.`
-    : `Offer ${O?.latest?.version || "the newest release"} to ${p}% of installed copies${p === 100 ? " (also moves Homebrew to it)" : ""}.`); };
-$("announce").onclick = () => ask("announce", { message: $("am").value, level: $("al").value, url: $("au").value.trim(), below: $("ab").value.trim() },
-  "Every installed copy shows this message once at its next daily check, and your webhook is called.");
+  ask("rollout", { percent: p, days: d }, d ? `Grow ${O?.latest?.version || "the newest release"} from ${p}% to 100% over ${d} days.` : `Offer ${O?.latest?.version || "the newest release"} to ${p}% of installed copies.`); };
+function annPreview() {
+  const msg = $("am").value || "Your message", lvl = $("al").value, url = $("au").value.trim(), name = (O && O.product) || "app";
+  const bin = (SET && SET.readonly.BINARY) || name.toLowerCase();
+  const tag = { security: "⚠️  SECURITY NOTICE", warning: "⚠️  NOTICE" }[lvl] || "ℹ️ ";
+  $("apcli").textContent = `${tag} ${bin}: ${msg}${url ? " · " + url : ""}`;
+  $("apicon").textContent = lvl === "info" ? "ℹ️" : "⚠️"; $("aptitle").textContent = name + (lvl === "security" ? " · security notice" : lvl === "warning" ? " · notice" : "");
+  $("apmsg").textContent = msg + (url ? " — " + url : "") + ($("ab").value.trim() ? `  (only versions below ${$("ab").value.trim()})` : "");
+}
+for (const id of ["am", "al", "au", "ab"]) $(id).oninput = annPreview;
+$("announce").onclick = () => ask("announce", { message: $("am").value, level: $("al").value, url: $("au").value.trim(), below: $("ab").value.trim() }, "Every installed copy shows this message once at its next daily check, and your webhook is called.");
 $("aclear").onclick = () => ask("announce", { clear: true }, "Remove the current announcement from latest.json.");
-$("yank").onclick = () => ask("yank", { version: $("yv").value, to: $("yt").value.trim(), reason: $("yr").value.trim() },
-  `Mark ${$("yv").value} as yanked: copies on it are told and \`upgrade\` takes them back; Homebrew and the beta channel move back too.`);
-$("refresh").onclick = load;
+function yankSteps() {
+  const v = $("yv").value || "X", to = $("yt").value.trim() || "the release before it";
+  $("ysteps").innerHTML = [`v${esc(v)} gets “[YANKED]” in its title and a warning in its notes; nothing is deleted`, `${esc(to)} becomes “latest” again, and its latest.json lists ${esc(v)} as yanked`,
+    `copies on ${esc(v)} are told it was pulled; <code>upgrade</code> moves them to ${esc(to)}`, "Homebrew and the beta channel move back too; your webhook gets a yank event",
+    "to fix forward later, release a newer version"].map(x => `<li>${x}</li>`).join("");
+}
+$("yv").onchange = yankSteps; $("yt").oninput = yankSteps;
+$("yank").onclick = () => ask("yank", { version: $("yv").value, to: $("yt").value.trim(), reason: $("yr").value.trim() }, `Yank ${$("yv").value}: the steps listed on the card happen now.`);
+
+// ---------- settings
+let initial = {};
+async function loadSettings() {
+  try { SET = await api("settings"); } catch (e) { $("setform").textContent = e.message; return; }
+  initial = Object.fromEntries(SET.editable.map(s => [s.key, s.value]));
+  $("setform").classList.remove("skel");
+  $("setform").innerHTML = SET.editable.map(s => {
+    let input;
+    if (s.kind === "select") input = `<select data-k="${esc(s.key)}">${s.options.map(o => `<option ${o === s.value ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+    else if (s.kind === "multi") { const cur = s.value.split(/\s+/); input = `<div class="checks" data-k="${esc(s.key)}">${s.options.map(o => `<label><input type="checkbox" value="${esc(o)}" ${cur.includes(o) ? "checked" : ""}>${esc(o)}</label>`).join("")}</div>`; }
+    else if (s.kind === "number") input = `<input type="number" data-k="${esc(s.key)}" min="${esc(s.min)}" max="${esc(s.max)}" value="${esc(s.value)}" style="width:110px">`;
+    else input = `<input data-k="${esc(s.key)}" value="${esc(s.value)}" style="width:100%">`;
+    return `<div class="set"><div><b>${esc(s.label)}</b><div class="mut small"><code>${esc(s.key)}</code>${s.missing ? ' <span class="chip">default</span>' : ""} <span class="changed" data-c="${esc(s.key)}"></span></div></div><div>${input}</div><div class="help">${esc(s.help)}</div></div>`;
+  }).join("") || '<div class="empty">Nothing to change here for this project.</div>';
+  $("setform").querySelectorAll("[data-k]").forEach(el => { el.oninput = setSaveState; el.onchange = setSaveState; });
+  $("ro").innerHTML = Object.entries(SET.readonly).map(([k, v]) => `<tr><td>${esc(k)}</td><td><code>${esc(v)}</code></td></tr>`).join("");
+  $("signed").innerHTML = SET.signed ? `<span class="chip ok">on</span><p class="small">Your apps check your Ed25519 signature on every update, so even someone with access to your GitHub account or a mirror can't push an update. Keep the private key safe.</p>`
+    : `<span class="chip warn">off</span><p class="small">Today copies trust a latest.json that comes over HTTPS from your GitHub releases and whose checksums match. With signed updates they also need your signature (Ed25519). Cost: keep the private key safe; if it's lost, users reinstall once.</p><p class="small">Turn it on in a terminal (it explains and asks): <code>sh scripts/keygen.sh</code></p>`;
+  setSaveState(); drawHistory(); annPreview();
+}
+function current() { const c = {}; $("setform").querySelectorAll("[data-k]").forEach(el => {
+  c[el.dataset.k] = el.classList.contains("checks") ? [...el.querySelectorAll("input:checked")].map(i => i.value).join(" ") : el.value.trim(); }); return c; }
+function changes() { const c = current(), out = {}; for (const k in c) if (c[k] !== initial[k]) out[k] = c[k]; return out; }
+function setSaveState() { const n = Object.keys(changes()).length, ch = changes();
+  document.querySelectorAll("[data-c]").forEach(e => e.textContent = e.dataset.c in ch ? "· changed" : "");
+  $("setsave").disabled = !n || jobRunning(); $("setnote").textContent = n ? `${n} change(s) not saved` : ""; }
+$("setreset").onclick = loadSettings;
+$("setsave").onclick = async () => {
+  const ch = changes();
+  try {
+    const p = await api("settings/plan", { changes: ch });
+    dialog("Save these changes to release.conf?", p.snapshotsOn ? "After saving, run shipcrate sync (on this tab) to add the daily Stats workflow, then commit and push." : "Only release.conf changes. Commit it when you're happy.", p.diff, "Save", async () => {
+      try { const r = await api("settings/apply", { changes: ch, confirm: p.after }); say(true, "✓ release.conf saved", r.diff + "\n\n" + r.next); await loadSettings(); load(); }
+      catch (e) { say(false, "Not saved", e.message); }
+    });
+  } catch (e) { say(false, "Can't save", e.message); }
+};
+$("sync").onclick = () => ask("sync", {}, "Refresh shipcrate's own files from the installed shipcrate release (adds the Stats workflow if snapshots are on). Files you edited are kept; review with git diff afterwards.");
+
+// ---------- page preferences (this browser only)
+$("ptab").value = pref("tab0") || "overview"; $("ptab").onchange = () => pref("tab0", $("ptab").value);
+$("pauto").checked = pref("auto") === "1"; let autoT = null;
+const auto = () => { clearInterval(autoT); if ($("pauto").checked) autoT = setInterval(() => { if (!jobRunning()) load(); }, 60000); };
+$("pauto").onchange = () => { pref("auto", $("pauto").checked ? "1" : "0"); auto(); };
+$("range").value = pref("range") || "30";
+$("refresh").onclick = () => { load(); loadSettings(); };
 if (!T) document.body.innerHTML = '<main><div class="card" style="margin-top:40px">Open the address that <code>shipcrate ui</code> printed (it includes a one-time key).</div></main>';
-else load();
+else { tab(pref("tab0") || "overview"); load(); loadSettings(); auto(); }
 </script>
 </body>
 </html>
