@@ -10,6 +10,19 @@
 set -eu
 cd "$(dirname "$0")/.."
 . ./release.conf
+if [ -t 0 ] && ! printf '%s' " $* " | grep -q -e ' --yes ' -e ' --no-secret '; then
+  cat <<'TXT'
+Signed updates: what changes
+  Today:  your app trusts latest.json when it comes over HTTPS from your GitHub releases and its checksums match.
+  After:  it also needs your Ed25519 signature on latest.json. Someone who got into your GitHub account, a
+          release or a mirror still couldn't push an update without your private key.
+  Users:  nothing changes for copies already installed until they take the next update; from then on they check.
+  You:    keep the private key safe (a password manager is fine). If it's lost, users must reinstall once.
+          The key never goes into the repository.
+TXT
+  printf 'Turn on signed updates for this project? [y/N] '; read -r ok
+  case "$ok" in y|Y|yes) ;; *) echo "No change."; exit 0 ;; esac
+fi
 DIR="${XDG_CONFIG_HOME:-$HOME/.config}/shipcrate"; KEY="$DIR/$(printf '%s' "$REPO" | tr '/' '-').ed25519.pem"
 if [ -f "$KEY" ] && ! printf '%s' " $* " | grep -q ' --rotate '; then echo "A key already exists: $KEY (use --rotate to replace it)"; else
   mkdir -p "$DIR" && chmod 700 "$DIR"; umask 077

@@ -13,6 +13,19 @@ Take only the parts you want. They're independent:
 
 All settings live in `release.conf`. Point `BUILD_CMD`, `ARTIFACT` and `VERSION_CMD` at your existing build.
 
+## Your own installer, updater and release script stay yours
+
+shipcrate adds to what a project already has and never replaces it silently. `shipcrate sync` and
+`shipcrate doctor` list your own pieces and explain what shipcrate's version would change:
+
+- **Installer:** yours is kept. `shipcrate sync --show install.sh` shows the difference (shipcrate's checks the signed
+  manifest, SHA-256 and provenance, and keeps the old copy for rollback).
+- **Updater copy:** yours is kept. Diff it against `updater/` and take the changes when you choose.
+- **Release script:** yours is kept. Call `scripts/release.sh` from it to get the safety rules.
+- **Signed updates (Ed25519):** off until you choose. `sh scripts/keygen.sh` explains what changes (your app also
+  checks your signature, so a compromised GitHub account or mirror can't push an update; the cost is keeping
+  the key safe) and asks before doing anything.
+
 ## Updating shipcrate in a live app (6 rules)
 
 The updater is the one part of an app that can't fix itself, so changes to it go out carefully:

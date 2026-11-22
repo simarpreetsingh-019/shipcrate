@@ -8,6 +8,7 @@
 
 ### Added
 - **Safe updates for live apps (6 rules):** `shipcrate sync` (shipcrate releases only, records `SHIPCRATE_VERSION`); `release.sh` asks for a beta first, a passing `scripts/update-path-test.sh` (the last stable copy updates itself to the new build, locally) and a timed rollout (`SAFE_ROLLOUT_DAYS`, default 7) when shipcrate's code or the updater changed; it refuses to drop download names the last release had. Escape hatches: `--skip-beta`, `--skip-update-test`, `--full-rollout`, `--allow-renamed-assets`.
+- **Your pieces stay yours:** `sync` and `doctor` list a project's own installer, updater copy and release script, explain what shipcrate's version would add, and point to `shipcrate sync --show FILE` for a diff. `keygen.sh` explains signed updates (today vs after, cost of a lost key) and asks first.
 - `shipcrate sync` never overwrites your edits: init and sync record checksums in `.shipcrate/files.sha256`; edited files are shown as a diff and only replaced if you say so (`--yes` keeps them).
 - Swift template: a `--update-now` launch flag pattern (the example app has it).
 

@@ -7,6 +7,7 @@
 #   shipcrate init [dir] [options]     add the release tooling to an existing repo ("shipcrate init --help")
 #   shipcrate doctor                   check this project's setup and explain any fixes
 #   shipcrate sync [--dry-run]         refresh shipcrate's own files in a project from this shipcrate release
+#   shipcrate sync --show FILE         compare one of your files (install.sh, a workflow…) with shipcrate's version
 #
 # Every day (run inside a project; they call the project's own scripts/):
 #   shipcrate check [--quick|--release]        the quality gate
@@ -31,7 +32,7 @@ T="$KIT/templates"
 say() { printf '%s\n' "$*"; }
 die() { say "shipcrate: $*" >&2; exit 1; }
 
-usage() { sed -n '2,26p' "$SELF" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,27p' "$SELF" | sed 's/^# \{0,1\}//'; }
 init_usage() { sed -n '/^# init options/,/^# Dependency-free/p' "$SELF" | sed 's/^# \{0,1\}//'; }
 
 # The project root: the nearest folder (from here up) with a release.conf.
@@ -65,6 +66,7 @@ doctor() {
   if grep -q "^PUBLIC_KEY='[A-Za-z0-9+/=]\{40,\}'" release.conf 2>/dev/null; then ok "signed updates on"; else printf '  • signed updates off (recommended): shipcrate keygen\n'; fi
   if [ "$TAP_REPO" != none ]; then gh repo view "$TAP_REPO" >/dev/null 2>&1 && ok "Homebrew tap $TAP_REPO exists" || no "Homebrew tap $TAP_REPO doesn't exist yet" "gh repo create $TAP_REPO --public (the first release fills it)"; fi
   if gh run list --workflow ci.yml --limit 1 --json conclusion -q '.[0].conclusion' 2>/dev/null | grep -q success; then ok "last CI run passed"; else printf '  • no passing CI run yet: push and check the Actions tab\n'; fi
+  compare_pieces
   say ""; [ $bad = 0 ] && say "All good. Next: shipcrate release <version> --dry-run" || say "$bad thing(s) to fix."
   return $bad
 }
@@ -75,11 +77,38 @@ kit_release() {
   else return 0; fi
 }
 
+# Your own pieces next to shipcrate's: keep them, and explain what shipcrate's version would change.
+compare_pieces() {
+  say ""; say "Your own pieces (kept as they are; shipcrate never replaces them without asking):"
+  if [ -f install.sh ] && ! grep -q '^# shipcrate-installer: ' install.sh; then
+    say "  • install.sh is yours. shipcrate's installer adds: reads the signed release manifest, checks SHA-256 and"
+    say "    GitHub provenance, picks the right build per platform, keeps the old copy for rollback."
+    say "    Compare: shipcrate sync --show install.sh"
+  fi
+  for c in $(grep -rls 'shipcrate:public-key' --include='*.rs' --include='*.py' --include='*.js' --include='*.ts' --include='*.swift' . 2>/dev/null | grep -v -E '^\./updater/|node_modules' || true); do
+    say "  • ${c#./} is your copy of the updater: update it from updater/ when you choose (diff updater/ ${c#./})."
+  done
+  if [ -f release.sh ] && ! grep -q 'scripts/release.sh' release.sh 2>/dev/null; then
+    say "  • release.sh is yours: shipcrate's safety rules (beta first, update-path test, slow rollout, keep download"
+    say "    names) only run through scripts/release.sh. Call it from yours to get them."
+  fi
+  if ! grep -q "^PUBLIC_KEY='[A-Za-z0-9+/=]\{40,\}'" release.conf 2>/dev/null; then
+    say "  • Signed updates are off. Today your app trusts a latest.json that comes over HTTPS from your GitHub"
+    say "    releases and whose checksums match. With signed updates it also needs your signature (Ed25519), so even"
+    say "    someone who got into your GitHub account or a mirror couldn't push an update. Nothing changes for copies"
+    say "    already installed until they update. The cost: keep the private key safe; if it's lost, users must"
+    say "    reinstall once. Turn on: sh scripts/keygen.sh (it explains and asks again)."
+  fi
+}
+
 # Refresh the files shipcrate owns (scripts/, tests/shipcrate/, .githooks/, updater/) from this shipcrate version.
 # Everything else (release.conf values, workflows, installers, your code) is left alone and only reported.
 sync_project() {
-  DRYS=0; YESS=0; DEV=0
-  for a in "$@"; do case "$a" in --dry-run|-n) DRYS=1 ;; --yes|-y) YESS=1 ;; --allow-dev) DEV=1 ;; *) die "sync: unknown option $a" ;; esac; done
+  DRYS=0; YESS=0; DEV=0; SHOW=""; NEXTA=""
+  for a in "$@"; do
+    if [ "$NEXTA" = show ]; then SHOW="$a"; NEXTA=""; continue; fi
+    case "$a" in --dry-run|-n) DRYS=1 ;; --yes|-y) YESS=1 ;; --allow-dev) DEV=1 ;; --show) NEXTA=show ;; *) die "sync: unknown option $a" ;; esac
+  done
   P=$(project); cd "$P"; . ./release.conf
   if ! kit_release && [ $DEV = 0 ]; then
     die "this shipcrate ($KIT) isn't a release (rule: sync only from releases). Install a release (brew upgrade shipcrate / shipcrate self-update), or pass --allow-dev for a throwaway copy"
@@ -91,6 +120,11 @@ sync_project() {
   [ "$TYPE" = cli ] && set -- "$@" --targets "$TARGETS"
   [ "$TYPE" = app ] && [ "$BUNDLE_ID" != none ] && set -- "$@" --bundle-id "$BUNDLE_ID"
   mkdir -p "$W/new"; sh "$KIT/bin/shipcrate" init "$W/new" "$@" >/dev/null || die "sync: couldn't generate the new files"
+  if [ -n "$SHOW" ]; then   # compare one of your files with shipcrate's current version of it; changes nothing
+    [ -f "$W/new/$SHOW" ] || die "shipcrate has no $SHOW for this project"
+    if [ -f "$SHOW" ]; then diff -u "$SHOW" "$W/new/$SHOW" | sed "2s|^+++ .*|+++ shipcrate's $SHOW|" || true; else cat "$W/new/$SHOW"; fi
+    return 0
+  fi
   say "shipcrate sync: ${SHIPCRATE_VERSION:-unknown} → $KIT_VERSION ($P)"
   # .shipcrate/files.sha256 remembers what sync wrote last time: a file that no longer matches was edited by you.
   REC=.shipcrate/files.sha256; : > "$W/apply"; : > "$W/edited"
@@ -110,7 +144,8 @@ sync_project() {
     [ -f "$W/new/$f" ] && [ -f "$f" ] && ! cmp -s "$W/new/$f" "$f" && say "  · $f differs from the new template (not synced: yours to compare)"
   done
   [ $changed = 0 ] && say "  nothing to update in shipcrate's own files"
-  if [ $DRYS = 1 ]; then say "Dry run: nothing changed."; return 0; fi
+  compare_pieces
+  if [ $DRYS = 1 ]; then say ""; say "Dry run: nothing changed."; return 0; fi
   if [ -s "$W/apply" ] && [ $YESS = 0 ]; then printf 'Update the %s unedited file(s)? [y/N] ' "$(wc -l < "$W/apply" | tr -d ' ')"; read -r ok </dev/tty; case "$ok" in y|Y|yes) ;; *) say "cancelled"; return 1 ;; esac; fi
   while IFS= read -r f; do [ -n "$f" ] && mkdir -p "$(dirname "$f")" && cp -p "$W/new/$f" "$f"; done < "$W/apply"
   while IFS= read -r f; do
