@@ -35,6 +35,12 @@ project named after your repo. With the command installed: `shipcrate new rust-c
 **The command, for an existing project:**
 
 ```sh
+brew install simarpreetsingh-019/shipcrate/shipcrate
+```
+
+or, without Homebrew:
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/simarpreetsingh-019/shipcrate/main/install.sh -o install.sh && sh install.sh
 ```
 

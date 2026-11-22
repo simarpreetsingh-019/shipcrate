@@ -23,7 +23,7 @@ Website: https://simarpreetsingh-019.github.io/shipcrate/
 
 ## Set up an existing project
 
-1. Install the `shipcrate` command if it's missing: `sh install.sh` from the repository (or `git clone … ~/.shipcrate`)
+1. Install the `shipcrate` command if it's missing: `brew install simarpreetsingh-019/shipcrate/shipcrate` (or `sh install.sh` from the repository)
 2. `shipcrate init . --dry-run --yes --name NAME --type app|cli --lang rust|swift|python|node --repo OWNER/REPO [--targets "macos-arm64 macos-x64 linux-x64 linux-arm64 windows-x64"] [--tap OWNER/homebrew-NAME|none]`
 3. Run the same command without `--dry-run`. Then make `BUILD_CMD`, `ARTIFACT` and `VERSION_CMD` in `release.conf` match the build.
 4. `sh scripts/install-hooks.sh && shipcrate doctor && shipcrate check`, and fix what fails.

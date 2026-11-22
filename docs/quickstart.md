@@ -14,11 +14,17 @@
 ## 1. Install shipcrate
 
 ```sh
+brew install simarpreetsingh-019/shipcrate/shipcrate
+```
+
+No Homebrew? Use the installer instead:
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/simarpreetsingh-019/shipcrate/main/install.sh -o install.sh && sh install.sh
 ```
 
-This installs the `shipcrate` command, which is plain shell: it clones the newest release to `~/.shipcrate` and links
-the command into your PATH. You also need the GitHub CLI: `brew install gh`, then `gh auth login`.
+Either way you get the `shipcrate` command (plain shell; the installer keeps it in `~/.shipcrate`). You also need
+the GitHub CLI: `brew install gh`, then `gh auth login`.
 
 ## 2. Add it to your project
 

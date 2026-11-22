@@ -41,6 +41,12 @@ and follow its rules: preview before writing, ask me before pushing, tagging or 
 ## 1. Install shipcrate (once)
 
 ```sh
+brew install simarpreetsingh-019/shipcrate/shipcrate
+```
+
+No Homebrew? Use the installer instead:
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/simarpreetsingh-019/shipcrate/main/install.sh -o install.sh && sh install.sh
 ```
 
