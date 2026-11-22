@@ -73,7 +73,7 @@ doctor() {
 
 # Is this shipcrate an actual release? (a Homebrew/tarball install is; a git checkout must sit on a vX.Y.Z tag)
 kit_release() {
-  if [ -d "$KIT/.git" ]; then git -C "$KIT" describe --tags --exact-match 2>/dev/null | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'
+  if [ -d "$KIT/.git" ]; then git -C "$KIT" tag --points-at HEAD 2>/dev/null | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'
   else return 0; fi
 }
 
