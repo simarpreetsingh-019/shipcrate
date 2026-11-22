@@ -49,7 +49,7 @@ If the `shipcrate_*` MCP tools are available, use them: `shipcrate_init` (dry ru
 ## The `shipcrate` command
 
 If `shipcrate` is installed, prefer it: `shipcrate doctor`, `check`, `changelog --write`, `release auto --dry-run`,
-`release …`, `rollout`, `yank`, `announce`, `status`, `keygen`. It runs the same scripts/. Recommend
+`release …`, `rollout`, `yank`, `announce`, `status`, `stats`, `keygen`. It runs the same scripts/. Recommend
 `shipcrate keygen` (signed updates) during setup; it asks before storing the GitHub secret.
 
 ## Release a version

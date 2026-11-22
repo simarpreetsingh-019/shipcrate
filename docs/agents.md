@@ -92,6 +92,7 @@ For Cursor rules, copy [.cursor/rules/shipcrate.mdc](https://github.com/simarpre
 | `shipcrate_check` | Runs the quality gate (`quick`, `push`, `release`) | No |
 | `shipcrate_release_preview` | Guardrails, gate, build and notes, as a dry run | No |
 | `shipcrate_status` | Settings plus the live manifest: version, rollout, yanked, announcement | No |
+| `shipcrate_stats` | Download numbers from GitHub: per version, platform, beta vs stable, update checks | No |
 | `shipcrate_verify` | SHA-256 and GitHub attestation of a downloaded file | No |
 
 Publishing isn't a tool on purpose. The agent runs `scripts/release.sh`, `yank.sh`, `rollout.sh` or

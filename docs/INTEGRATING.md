@@ -127,6 +127,23 @@ minor, `fix:` a patch, and `feat!:` or `BREAKING CHANGE:` a major (a minor befor
 Added, Fixed, Changed and Security. `--write` adds the section to CHANGELOG.md, and `shipcrate release auto`
 uses the suggested version.
 
+## How many people downloaded it?
+
+```sh
+shipcrate stats
+```
+
+This shows each release's downloads per platform, beta vs stable, and update checks. There's no tracking and
+nothing in your app: shipcrate reads the counts GitHub keeps for every release file.
+
+- **Archive downloads** (e.g. `mytool-macos-arm64.tar.gz` of 1.4.0) = installs and upgrades of that version.
+- **`latest.json` / `beta.json` downloads** = update checks. Each copy checks at most once a day, so the daily
+  growth is roughly the number of copies in use (stable vs beta).
+- Counts are running totals, and they restart when a manifest is re-uploaded (by announce, rollout or yank).
+  Set `STATS_SNAPSHOTS='on'` in `release.conf` and the daily Stats workflow saves them to a `stats` branch; then
+  `shipcrate stats --history stats.csv` shows growth per day, e.g. how fast a rollout is being picked up.
+- Not counted: unique people (two Macs count as two), Homebrew taps, and your own mirrors (use their logs).
+
 ## Rolling back a bad release
 
 | Who | Command | What happens |

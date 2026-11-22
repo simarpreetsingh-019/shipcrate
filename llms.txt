@@ -34,6 +34,7 @@ Website: https://simarpreetsingh-019.github.io/shipcrate/
 - Staged rollout: `sh scripts/release.sh X.Y.Z --rollout 10`, then `sh scripts/rollout.sh 50`, then `sh scripts/rollout.sh 100`
 - Bad release: `sh scripts/yank.sh X.Y.Z [--to GOOD] [--reason "…"]`
 - Message every user: `sh scripts/announce.sh "text" [--level info|warning|security] [--url https://…] [--below X.Y.Z]`
+- Download numbers (no tracking): `shipcrate stats` (history: `STATS_SNAPSHOTS='on'` in release.conf, then `--history stats.csv`)
 - Verify a download: `gh attestation verify FILE --repo OWNER/REPO`
 
 ## Examples

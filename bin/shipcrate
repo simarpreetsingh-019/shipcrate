@@ -13,6 +13,7 @@
 #   shipcrate yank <X.Y.Z> [--to GOOD] [--reason "…"]   pull a bad release; users are moved back
 #   shipcrate announce "message" [--level …] [--url …] [--below X.Y.Z] | --clear
 #   shipcrate status                           settings + what's live (version, rollout, yanked, message)
+#   shipcrate stats [--history stats.csv]      download numbers from GitHub (no tracking)
 #   shipcrate keygen                           make the signing key for signed updates
 #
 # Other:
@@ -27,7 +28,7 @@ T="$KIT/templates"
 say() { printf '%s\n' "$*"; }
 die() { say "shipcrate: $*" >&2; exit 1; }
 
-usage() { sed -n '2,22p' "$SELF" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,23p' "$SELF" | sed 's/^# \{0,1\}//'; }
 init_usage() { sed -n '/^# init options/,/^# Dependency-free/p' "$SELF" | sed 's/^# \{0,1\}//'; }
 
 # The project root: the nearest folder (from here up) with a release.conf.
@@ -92,6 +93,7 @@ case "$cmd" in
   yank) script yank "$@" ;;
   announce) script announce "$@" ;;
   keygen) script keygen "$@" ;;
+  stats) script stats "$@" ;;
   status) status; exit 0 ;;
   doctor) doctor; exit $? ;;
   demo) exec sh "$KIT/examples/demo.sh" ;;

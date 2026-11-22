@@ -7,6 +7,7 @@
 - **One `shipcrate` command:** `check`, `changelog`, `release`, `rollout`, `yank`, `announce`, `status`, `doctor`, `keygen`, `demo`, `mcp`, `self-update`; `install.sh` installer and a Homebrew formula.
 - **Timed rollout:** `--rollout-days N` grows an update to 100% over N days on each client.
 - **Version and changelog from commits:** `shipcrate changelog` (Conventional Commits) and `shipcrate release auto`.
+- **Download stats without tracking:** `shipcrate stats` shows GitHub's download counts per version, platform and channel, plus update checks; an optional daily snapshot workflow (`STATS_SNAPSHOTS='on'`) keeps history for `--history`. MCP tool `shipcrate_stats`.
 - **SBOM and Sigstore:** every release gets an SPDX SBOM, an SBOM attestation and keyless Sigstore signatures (free).
 - **Examples:** Rust, Python and Node CLIs and a SwiftUI Mac app, plus `examples/demo.sh`, a 60-second offline demo (now with signed updates and a forged-manifest refusal) and `tests/test-examples.sh`.
 - **Website:** SEO and AEO (sitemap, JSON-LD, FAQ, `llms-full.txt`), the Contributing page, and `tools/preview.sh` for local previews.

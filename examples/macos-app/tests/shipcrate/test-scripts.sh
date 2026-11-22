@@ -89,6 +89,15 @@ if [ "$TYPE" = cli ] && { [ "$T" = "$(host_target)" ] || [ "$T" = any ]; } && [ 
   # downloads from other hosts are refused with the default manifest
   grep -q 'unexpected download location' install.sh || fail "install.sh lost its host check"
 fi
+# stats.sh: renders GitHub's download counts (from saved data here, no network)
+printf 'v1.1.0\tfalse\tx 1.1.0\tx-macos-arm64.tar.gz\t40\t2026-11-20T10:00:00Z\nv1.1.0\tfalse\tx 1.1.0\tlatest.json\t300\t2026-11-20T10:00:00Z\nv1.2.0-beta.1\ttrue\tx\tx-linux-x64.tar.gz\t7\t2026-11-21T10:00:00Z\nchannel\ttrue\tc\tbeta.json\t12\t2026-11-21T10:00:00Z\n' > "$W/s.tsv"
+OUT=$(SHIPCRATE_STATS_TSV="$W/s.tsv" sh scripts/stats.sh)
+printf '%s' "$OUT" | grep -q 'v1.1.0.*stable.*40.*300' || fail "stats: stable row wrong"
+printf '%s' "$OUT" | grep -q 'v1.2.0-beta.1.*beta.*7' || fail "stats: beta row wrong"
+printf '%s' "$OUT" | grep -q 'beta channel checks (beta.json): 12' || fail "stats: beta checks wrong"
+printf 'date,tag,file,count\n2026-11-20,v1.1.0,x-macos-arm64.tar.gz,10\n2026-11-21,v1.1.0,x-macos-arm64.tar.gz,25\n' > "$W/s.csv"
+SHIPCRATE_STATS_TSV="$W/s.tsv" sh scripts/stats.sh --history "$W/s.csv" | grep -q '2026-11-21 *v1.1.0 *25 *+15' || fail "stats --history: per-day growth wrong"
+
 # changelog.sh: version and section from conventional commits, in a throwaway git repo
 G="$W/g"; mkdir -p "$G" && cp -R "$ROOT/scripts" "$ROOT/release.conf" "$G/" && cd "$G"
 git init -q && git config user.email t@example.invalid && git config user.name t && git config commit.gpgsign false

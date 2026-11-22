@@ -101,6 +101,15 @@ const TOOLS = [
       }
       return text(`release.conf:\n${conf}\n\nlatest.json (notes omitted):\n${rel}`);
     } },
+  { name: "shipcrate_stats", description: "Download numbers from GitHub for the project's releases: per version, per platform, beta vs stable, update checks. No tracking; GitHub's public counts.",
+    inputSchema: { type: "object", required: ["dir"], properties: { dir: { type: "string" } } },
+    annotations: { readOnlyHint: true },
+    async call({ dir }) {
+      const d = dirArg(dir); needConf(d);
+      if (!fs.existsSync(path.join(d, "scripts/stats.sh"))) throw new Error("scripts/stats.sh is missing: rerun shipcrate_init (keeps existing files)");
+      const r = await run("sh", ["scripts/stats.sh"], { cwd: d, timeout: 60000 });
+      return text(r.out, r.code !== 0);
+    } },
   { name: "shipcrate_verify", description: "Verify a downloaded release file: SHA-256 and, if gh is installed, its GitHub build attestation.",
     inputSchema: { type: "object", required: ["file", "repo"], properties: { file: { type: "string" }, repo: { type: "string" }, sha256: { type: "string", description: "Expected checksum (optional)" } } },
     annotations: { readOnlyHint: true },

@@ -24,7 +24,7 @@ test("MCP handshake, tools, dry-run init, refusals", async () => {
     assert.match(init.result.instructions, /star/);
 
     const names = (await c.call("tools/list")).result.tools.map(t => t.name);
-    for (const n of ["shipcrate_docs", "shipcrate_init", "shipcrate_check", "shipcrate_release_preview", "shipcrate_status", "shipcrate_verify"]) assert.ok(names.includes(n), n);
+    for (const n of ["shipcrate_docs", "shipcrate_init", "shipcrate_check", "shipcrate_release_preview", "shipcrate_status", "shipcrate_stats", "shipcrate_verify"]) assert.ok(names.includes(n), n);
     assert.ok(!names.some(n => /publish|yank|announce|rollout/.test(n)), "no publishing tools");
 
     const docs = await c.call("tools/call", { name: "shipcrate_docs", arguments: { topic: "quickstart" } });
