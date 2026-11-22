@@ -42,7 +42,7 @@ th{color:var(--mut);font-weight:550}td.n,th.n{text-align:right;font-variant-nume
 .col .b{width:100%;border-radius:5px 5px 0 0;background:var(--acc);min-height:2px}
 .col.beta .b{background:var(--acc2)}
 .col span{font-size:11px;color:var(--mut);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
-.col{flex:1 0 44px;min-width:44px}
+.col{flex:1 1 0;min-width:30px}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 4px 0 10px;vertical-align:0}
 .actions{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
 .act{display:flex;flex-direction:column;gap:8px}
@@ -172,7 +172,7 @@ async function load() {
     const rp = nowPct(O.latest); $("rp").value = rp; $("rpv").textContent = rp + "%";
     $("rollnow").textContent = O.latest ? `Now: ${rp}% of copies are offered ${O.latest.version}.` : "The newest stable release has no latest.json yet (it came before shipcrate): rollout and announcements start with the next stable release.";
     for (const id of ["rollout", "announce", "aclear"]) $(id).dataset.off = O.latest ? "" : "1";
-    const rel = O.releases || [];
+    const rel = (O.releases || []).filter(r => r.tagName !== "channel");
     $("releases").innerHTML = rel.length ? `<table><tr><th>Release</th><th>Kind</th><th>Published</th></tr>${rel.map(r => `<tr><td><a href="https://github.com/${esc(O.repo)}/releases/tag/${esc(r.tagName)}" target="_blank" rel="noopener">${esc(r.name || r.tagName)}</a></td><td>${r.isLatest ? '<span class="chip ok">latest</span>' : r.isPrerelease ? '<span class="chip">pre-release</span>' : ""}${/YANKED/.test(r.name) ? ' <span class="chip bad">yanked</span>' : ""}</td><td class="mut">${ago(r.publishedAt)}</td></tr>`).join("")}</table>` : '<span class="mut">No releases yet.</span>';
     for (const id of ["rollout", "announce", "aclear"]) $(id).disabled = !O.latest;
     $("yv").innerHTML = rel.filter(r => /^v\d/.test(r.tagName)).map(r => `<option>${esc(r.tagName.slice(1))}</option>`).join("");
@@ -190,7 +190,7 @@ async function loadStats() {
     const rows = s.rows.filter(r => r.tag !== "channel" && !/\.(json|sig|sha256|sigstore\.json|spdx\.json)$|SHA256SUMS/.test(r.file));
     const checks = s.rows.filter(r => /latest\.json$|beta\.json$/.test(r.file)).reduce((a, r) => a + r.count, 0);
     const by = {}; for (const r of rows) { by[r.tag] ??= { tag: r.tag, beta: r.beta, n: 0, at: r.at }; by[r.tag].n += r.count; }
-    const vs = Object.values(by).sort((a, b) => a.at.localeCompare(b.at)).slice(-14);
+    const vs = Object.values(by).sort((a, b) => a.at.localeCompare(b.at)).slice(-10);
     const max = Math.max(1, ...vs.map(v => v.n)), total = rows.reduce((a, r) => a + r.count, 0);
     $("chart").classList.remove("skel");
     $("chart").innerHTML = vs.length ? vs.map(v => `<div class="col ${v.beta ? "beta" : ""}" title="${esc(v.tag)}: ${v.n} downloads"><span>${v.n}</span><div class="b" style="height:${Math.round(120 * v.n / max)}px"></div><span>${esc(v.tag.replace(/^v/, "").replace(/-beta\.?/, " β").replace(/-rc\.?/, " rc"))}</span></div>`).join("") : '<span class="mut">No downloads yet.</span>';
