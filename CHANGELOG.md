@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.0] - 2026-11-22
 
 ### Added
 - **Claude Code plugin:** `/plugin install shipcrate --marketplace simarpreetsingh-019/shipcrate` brings the MCP server, skill, `/shipcrate:setup` (about 2 minutes) and `/shipcrate:release`.
@@ -8,19 +8,8 @@
 - Swift updater: updates now work when the app was renamed (e.g. "App 2.app"); first found and fixed in Thermo.
 - **New projects in under 5 minutes:** `shipcrate new <rust-cli|python-cli|node-cli|macos-app> <dir>`, or **Use this template** on the shipcrate repo followed by `sh start.sh`; either way you get one ready-to-release project renamed after your repo. shipcrate's own workflows skip in repos made from the template. `tests/test-templates.sh` runs every path as a new user.
 - `tools/ci-local.sh`: run the Linux CI job locally in Docker before pushing.
-
 - Swift updater: `updateNow()`, a public `install`, and `<NAME>_UPDATE_MANIFEST` (a mirror or a manifest on this machine) for testing.
-
-### Fixed
-- `tap.sh` now also updates the single `sha256` line of hand-written casks and formulas (no `# shipcrate:` markers).
-- `latest.json` could be invalid on Debian/Ubuntu machines (mawk) when release notes contained a backslash: JSON escaping now uses portable `sed`.
-
-### Added (stats)
 - `shipcrate stats --baseline` / `--baseline-clear`: a zero point (saved on your machine only) so your own downloads and testing don't count; `--repo owner/name` for any repository.
-
-## [0.4.0] - 2026-11-22
-
-### Added
 - **Signed updates:** `shipcrate keygen` makes an Ed25519 key; every `latest.json` is signed (`latest.json.sig`), and the Swift, Rust, Python and Node updaters verify it before trusting anything. No dependencies, no cost (CryptoKit, Node crypto, RFC 8032 verifiers in Rust and Python, tested with the RFC vectors).
 - **One `shipcrate` command:** `check`, `changelog`, `release`, `rollout`, `yank`, `announce`, `status`, `doctor`, `keygen`, `demo`, `mcp`, `self-update`; `install.sh` installer and a Homebrew formula.
 - **Timed rollout:** `--rollout-days N` grows an update to 100% over N days on each client.
@@ -31,6 +20,10 @@
 - **Website:** SEO and AEO (sitemap, JSON-LD, FAQ, `llms-full.txt`), the Contributing page, and `tools/preview.sh` for local previews.
 - ROADMAP.md, with learnings from GoReleaser, dist, Sparkle, Velopack, Tauri and release-please.
 - Updaters accept a manifest on this machine (`http://127.0.0.1`/`localhost`) for demos and local testing.
+
+### Fixed
+- `tap.sh` now also updates the single `sha256` line of hand-written casks and formulas (no `# shipcrate:` markers).
+- `latest.json` could be invalid on Debian/Ubuntu machines (mawk) when release notes contained a backslash: JSON escaping now uses portable `sed`.
 
 ## [0.3.0] - 2026-11-20
 
