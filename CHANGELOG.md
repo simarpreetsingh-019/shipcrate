@@ -5,7 +5,10 @@
 ### Added
 - `tools/ci-local.sh`: run the Linux CI job locally in Docker before pushing.
 
+- Swift updater: `updateNow()`, a public `install`, and `<NAME>_UPDATE_MANIFEST` (a mirror or a manifest on this machine) for testing.
+
 ### Fixed
+- `tap.sh` now also updates the single `sha256` line of hand-written casks and formulas (no `# shipcrate:` markers).
 - `latest.json` could be invalid on Debian/Ubuntu machines (mawk) when release notes contained a backslash: JSON escaping now uses portable `sed`.
 
 ### Added (stats)

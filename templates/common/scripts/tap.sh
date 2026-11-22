@@ -20,4 +20,10 @@ for t in $TARGETS; do
   [ -n "$sha" ] || continue
   sed -E "s/sha256 \"[0-9a-f]*\"( *# shipcrate:$t)$/sha256 \"$sha\"\\1/" "$F" > "$F.new" && mv "$F.new" "$F"
 done
+# A single-platform tap file written by hand (no "# shipcrate:<target>" markers): update its one sha256 line.
+set -- $TARGETS
+if [ $# -eq 1 ] && ! grep -q '# shipcrate:' "$F"; then
+  sha=$(awk -v a="$(asset_for "$1")" '$2==a || $2=="*"a {print $1}' "$W/SHA256SUMS")
+  [ -n "$sha" ] && sed -E "s/^  sha256 \"[0-9a-f]*\"/  sha256 \"$sha\"/" "$F" > "$F.new" && mv "$F.new" "$F"
+fi
 if git -C "$W/tap" diff --quiet; then echo "• $TAP_REPO already on $V"; else git -C "$W/tap" commit -qam "$TOKEN $V" && git -C "$W/tap" push -q && echo "✓ $TAP_REPO → $V"; fi

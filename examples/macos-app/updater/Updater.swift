@@ -65,7 +65,7 @@ final class Updater: ObservableObject {
     /// The release manifest. Point it at your own server or CDN (same latest.json format) if you mirror releases,
     /// and add that host to `allowedHosts`.
     static var manifestURL: URL {
-        get { manifestOverride ?? URL(string: channel == "beta"
+        get { manifestOverride ?? envManifest ?? URL(string: channel == "beta"
             ? "https://github.com/you/HelloShip/releases/download/channel/beta.json"
             : "https://github.com/you/HelloShip/releases/latest/download/latest.json")! }
         set { manifestOverride = newValue }
@@ -82,6 +82,20 @@ final class Updater: ObservableObject {
         let b = Int.random(in: 0..<100); UserDefaults.standard.set(b, forKey: "rolloutBucket"); return b
     }
     static var allowedHosts: Set<String> = ["github.com"]
+    /// `HELLOSHIP_UPDATE_MANIFEST`: a mirror (https) or a manifest on this machine (http://127.0.0.1 or localhost) for
+    /// testing updates without touching GitHub (and without adding to its download counts).
+    static var envManifest: URL? {
+        guard let s = ProcessInfo.processInfo.environment["HELLOSHIP_UPDATE_MANIFEST"], let u = URL(string: s) else { return nil }
+        return u.scheme == "https" || isLoopback(u) ? u : nil
+    }
+    static func isLoopback(_ u: URL) -> Bool {
+        u.scheme == "http" && ["127.0.0.1", "localhost", "::1"].contains(u.host ?? "")
+    }
+    /// Downloads only from GitHub (or your allowedHosts), over https; from this machine when the manifest is local.
+    static func downloadAllowed(_ z: URL) -> Bool {
+        if let m = envManifest, z.host == m.host, z.scheme == m.scheme { return true }
+        return z.scheme == "https" && allowedHosts.contains(z.host ?? "")
+    }
     /// Set this to route update notices into your own notification system (UNUserNotificationCenter, an in-app
     /// inbox, your push service…). Called on the main thread for automatic checks. The built-in button still works.
     var onUpdateAvailable: ((Release) -> Void)?
@@ -192,8 +206,7 @@ final class Updater: ObservableObject {
               let v = (j["version"] as? String).map({ $0.hasPrefix("v") ? String($0.dropFirst()) : $0 }),
               let assets = j["assets"] as? [String: Any],
               let a = (assets["macos"] ?? assets["macos-universal"] ?? assets["macos-arm64"]) as? [String: Any],
-              let z = (a["url"] as? String).flatMap(URL.init(string:)), z.scheme == "https",
-              Self.allowedHosts.contains(z.host ?? ""),
+              let z = (a["url"] as? String).flatMap(URL.init(string:)), Self.downloadAllowed(z),
               let sha = (a["sha256"] as? String)?.lowercased(), sha.count == 64 else { return nil }
         let yanked = ((j["yanked"] as? [String]) ?? []).map { $0.hasPrefix("v") ? String($0.dropFirst()) : $0 }.contains(current) && v != current
         let rollout = effectiveRollout(j, now: now)
@@ -245,7 +258,14 @@ final class Updater: ObservableObject {
         DispatchQueue.main.async { self.status = "Update failed: \(msg)"; NSLog("HelloShip update failed: %@", msg) }
     }
 
-    private func install(_ r: Release) {
+    /// Check and install right away, without asking (for a `--update-now` command-line flag or a menu item).
+    func updateNow() {
+        check(userInitiated: true) { [weak self] r in
+            if let r { self?.install(r) } else { print(self?.status ?? "No update") }
+        }
+    }
+
+    func install(_ r: Release) {
         status = "Downloading \(r.version)…"
         let target = Bundle.main.bundleURL
         guard FileManager.default.isWritableFile(atPath: target.deletingLastPathComponent().path) else {

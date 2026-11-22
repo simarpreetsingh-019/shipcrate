@@ -18,6 +18,7 @@ let r = Updater.parseManifest(manifest(good, String(repeating: "a", count: 64), 
 expect(r != nil && r!.isSecurity, "accepts a newer GitHub release and sees the security flag")
 expect(Updater.parseManifest(manifest(good, String(repeating: "a", count: 64)), current: "9.9.9") == nil, "no update when current")
 expect(Updater.parseManifest(manifest("https://evil.example/x.zip", String(repeating: "a", count: 64)), current: "1.0.0") == nil, "refuses other hosts")
+expect(!Updater.downloadAllowed(URL(string: "http://127.0.0.1:8000/x.zip")!), "no local downloads unless the manifest is local")
 expect(Updater.parseManifest(manifest("http://github.com/x.zip", String(repeating: "a", count: 64)), current: "1.0.0") == nil, "refuses plain http")
 expect(Updater.parseManifest(manifest(good, "abc"), current: "1.0.0") == nil, "refuses a bad checksum")
 func m2(_ extra: [String: Any]) -> Data {
