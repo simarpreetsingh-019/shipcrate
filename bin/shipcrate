@@ -13,7 +13,7 @@
 #   shipcrate yank <X.Y.Z> [--to GOOD] [--reason "…"]   pull a bad release; users are moved back
 #   shipcrate announce "message" [--level …] [--url …] [--below X.Y.Z] | --clear
 #   shipcrate status                           settings + what's live (version, rollout, yanked, message)
-#   shipcrate stats [--history stats.csv]      download numbers from GitHub (no tracking)
+#   shipcrate stats [--baseline] [--history F] [--repo owner/name]   download numbers from GitHub (no tracking)
 #   shipcrate keygen                           make the signing key for signed updates
 #
 # Other:
@@ -93,7 +93,8 @@ case "$cmd" in
   yank) script yank "$@" ;;
   announce) script announce "$@" ;;
   keygen) script keygen "$@" ;;
-  stats) script stats "$@" ;;
+  stats) if [ "${1:-}" = --repo ]; then R="${2:?--repo owner/name}"; shift 2; SHIPCRATE_REPO="$R" exec sh "$T/common/scripts/stats.sh" "$@"; fi
+         script stats "$@" ;;
   status) status; exit 0 ;;
   doctor) doctor; exit $? ;;
   demo) exec sh "$KIT/examples/demo.sh" ;;

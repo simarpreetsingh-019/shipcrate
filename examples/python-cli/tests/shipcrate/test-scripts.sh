@@ -97,6 +97,13 @@ printf '%s' "$OUT" | grep -q 'v1.2.0-beta.1.*beta.*7' || fail "stats: beta row w
 printf '%s' "$OUT" | grep -q 'beta channel checks (beta.json): 12' || fail "stats: beta checks wrong"
 printf 'date,tag,file,count\n2026-11-20,v1.1.0,x-macos-arm64.tar.gz,10\n2026-11-21,v1.1.0,x-macos-arm64.tar.gz,25\n' > "$W/s.csv"
 SHIPCRATE_STATS_TSV="$W/s.tsv" sh scripts/stats.sh --history "$W/s.csv" | grep -q '2026-11-21 *v1.1.0 *25 *+15' || fail "stats --history: per-day growth wrong"
+XDG_CONFIG_HOME="$W/scfg" SHIPCRATE_STATS_TSV="$W/s.tsv" sh scripts/stats.sh --baseline >/dev/null
+sed 's/\t40\t/\t46\t/' "$W/s.tsv" > "$W/s2.tsv"   # 6 more downloads after the zero point
+OUT=$(XDG_CONFIG_HOME="$W/scfg" SHIPCRATE_STATS_TSV="$W/s2.tsv" sh scripts/stats.sh)
+printf '%s' "$OUT" | grep -q 'Showing downloads since' || fail "stats: baseline not applied"
+printf '%s' "$OUT" | grep -q 'v1.1.0.*stable *6 ' || fail "stats: baseline subtraction wrong"
+XDG_CONFIG_HOME="$W/scfg" sh scripts/stats.sh --baseline-clear >/dev/null
+XDG_CONFIG_HOME="$W/scfg" SHIPCRATE_STATS_TSV="$W/s2.tsv" sh scripts/stats.sh | grep -q 'v1.1.0.*stable *46 ' || fail "stats: --baseline-clear didn't restore totals"
 
 # keygen.sh + sign.sh: keys with "/" and "+" land in release.conf and every updater file; signatures verify
 if openssl version 2>/dev/null | grep -q '^OpenSSL [3-9]' || command -v node >/dev/null 2>&1; then

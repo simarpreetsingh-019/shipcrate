@@ -5,7 +5,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 sh tools/assemble-site.sh
-rm -rf ./_site && mkdir -p _site
+mkdir -p _site && rm -rf ./_site/shipcrate   # keep _site itself, so a running preview server keeps serving
 # GitHub's own Pages build image, run the way the Pages workflow runs it.
 docker run --rm -v "$PWD:/w" -e GITHUB_WORKSPACE=/w -e INPUT_SOURCE=site -e INPUT_DESTINATION=_site/shipcrate \
   -e GITHUB_REPOSITORY=simarpreetsingh-019/shipcrate ghcr.io/actions/jekyll-build-pages:v1.0.13 2>&1 | grep -E 'error|Error|done in' | tail -5

@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `shipcrate stats --baseline` / `--baseline-clear`: a zero point (saved on your machine only) so your own downloads and testing don't count; `--repo owner/name` for any repository.
+
 ## [0.4.0] - 2026-11-22
 
 ### Added

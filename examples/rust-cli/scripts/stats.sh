@@ -4,6 +4,12 @@
 #   sh scripts/stats.sh              per version: downloads per platform, beta vs stable, update checks
 #   sh scripts/stats.sh --csv        one line per file (date,tag,file,count) for snapshots
 #   sh scripts/stats.sh --history F  per-day growth from a snapshot CSV (made by the daily stats workflow)
+#   sh scripts/stats.sh --baseline   treat today's counts as yours (testing, your own installs): from now on the
+#                                    table shows only downloads after today. Saved on this machine only, in
+#                                    ~/.config/shipcrate/stats/; GitHub is not changed. Run it again to move the zero point.
+#   sh scripts/stats.sh --baseline-clear     show full totals again
+# Not counting yourself in the first place: test updates against a local manifest (shipcrate demo,
+# <NAME>_UPDATE_MANIFEST=http://127.0.0.1:…/latest.json) instead of GitHub.
 # Reading the numbers:
 #   · latest.json / beta.json downloads = update checks so far; each copy checks at most once a day, so the
 #     growth per day (from snapshots) ≈ copies in use that day
@@ -11,8 +17,9 @@
 #   · counts only go up, and re-uploading a file (announce, rollout, yank) starts its count again: keep snapshots
 #   · counts aren't unique people; Homebrew taps and your own mirrors aren't counted here
 set -eu
-cd "$(dirname "$0")/.."
-. ./release.conf
+if [ -n "${SHIPCRATE_REPO:-}" ]; then REPO="$SHIPCRATE_REPO"; PRODUCT="${REPO#*/}"   # `shipcrate stats --repo owner/name`
+else cd "$(dirname "$0")/.." && . ./release.conf; fi
+BASE="${XDG_CONFIG_HOME:-$HOME/.config}/shipcrate/stats/$(printf '%s' "$REPO" | tr '/' '-').baseline.csv"
 MODE="${1:-table}"; TSV="${SHIPCRATE_STATS_TSV:-}"   # SHIPCRATE_STATS_TSV=file: use saved data (tests)
 fetch() {
   if [ -n "$TSV" ]; then cat "$TSV"; return; fi
@@ -20,9 +27,15 @@ fetch() {
   gh api "repos/$REPO/releases?per_page=100" --paginate \
     --jq '.[] | . as $r | .assets[] | [$r.tag_name, ($r.prerelease|tostring), ($r.name // ""), .name, (.download_count|tostring), $r.published_at] | @tsv'
 }
+case "$MODE" in --baseline-clear) rm -f "$BASE"; echo "✓ baseline removed: full totals again"; exit 0 ;; esac
 DATA=$(fetch)
 [ -n "$DATA" ] || { echo "No releases with files yet."; exit 0; }
 case "$MODE" in
+  --baseline)
+    mkdir -p "$(dirname "$BASE")"
+    printf '%s\n' "$DATA" | awk -F'\t' -v d="$(date -u +%Y-%m-%d)" '{ printf "%s,%s,%s,%s\n", $1, $4, $5, d }' > "$BASE"
+    echo "✓ zero point set: today's $(wc -l < "$BASE" | tr -d ' ') file counts are treated as yours ($BASE)"
+    echo "  shipcrate stats now shows only downloads after today. Undo: --baseline-clear" ;;
   --csv)
     D=$(date -u +%Y-%m-%d)
     printf '%s\n' "$DATA" | awk -F'\t' -v d="$D" '{ printf "%s,%s,%s,%s\n", d, $1, $4, $5 }' ;;
@@ -42,7 +55,12 @@ case "$MODE" in
       }' "$F" ;;
   *)
     printf '%s · download numbers from GitHub (no tracking)\n\n' "$PRODUCT"
-    printf '%s\n' "$DATA" | awk -F'\t' '
+    SINCE=""; [ -f "$BASE" ] && SINCE=$(head -1 "$BASE" | cut -d, -f4)
+    [ -n "$SINCE" ] && printf 'Showing downloads since %s (your zero point; full totals: --baseline-clear)\n\n' "$SINCE"
+    { [ -f "$BASE" ] && awk -F, '{ printf "B\t%s\t%s\t%s\n", $1, $2, $3 }' "$BASE"; printf '%s\n' "$DATA"; } | awk -F'\t' '
+      # baseline rows come first: subtract them (a re-uploaded file restarts at 0, so never go below 0)
+      $1 == "B" { base[$2 SUBSEP $3] = $4; next }
+      { k = $1 SUBSEP $4; if (k in base) $5 = ($5 >= base[k] ? $5 - base[k] : $5) }
       $1 == "channel" { if ($4 == "beta.json") beta = $5; next }
       { tag = $1; if (!(tag in seen)) { order[++n] = tag; seen[tag] = 1; pre[tag] = $2; yank[tag] = ($3 ~ /^\[YANKED\]/); when[tag] = substr($6, 1, 10) }
         if ($4 ~ /\.(tar\.gz|tgz|zip)$/) { plat = $4; sub(/\.(tar\.gz|tgz|zip)$/, "", plat); total[tag] += $5; per[tag] = per[tag] sprintf("  %s %d", plat, $5) }

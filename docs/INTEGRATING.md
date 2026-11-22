@@ -144,6 +144,21 @@ nothing in your app: shipcrate reads the counts GitHub keeps for every release f
   `shipcrate stats --history stats.csv` shows growth per day, e.g. how fast a rollout is being picked up.
 - Not counted: unique people (two Macs count as two), Homebrew taps, and your own mirrors (use their logs).
 
+**Leave out your own downloads.** GitHub only keeps one number per file, so it can't separate your downloads from
+anyone else's. Instead, set a zero point:
+
+```sh
+shipcrate stats --baseline          # today's counts are treated as yours; from now on only newer downloads show
+shipcrate stats --baseline-clear    # back to full totals
+```
+
+The zero point is saved on your machine (`~/.config/shipcrate/stats/`), and GitHub isn't changed. Run `--baseline`
+again after your own testing to move it. Better still, don't count yourself in the first place: test updates
+against a local manifest (`shipcrate demo`, or `<NAME>_UPDATE_MANIFEST=http://127.0.0.1:8000/latest.json`)
+instead of GitHub.
+
+Any repository works, even one not set up with shipcrate: `shipcrate stats --repo owner/name`.
+
 ## Rolling back a bad release
 
 | Who | Command | What happens |
