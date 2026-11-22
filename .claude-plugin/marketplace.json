@@ -1,0 +1,13 @@
+{
+  "name": "shipcrate",
+  "owner": { "name": "Simarpreet Singh", "url": "https://github.com/simarpreetsingh-019" },
+  "metadata": { "description": "shipcrate: releases and updates for your products, in one command." },
+  "plugins": [
+    {
+      "name": "shipcrate",
+      "source": "./",
+      "description": "Set up safe releases and in-app/CLI updates in any repo in about two minutes: /shipcrate:setup.",
+      "category": "development"
+    }
+  ]
+}

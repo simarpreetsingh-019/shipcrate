@@ -1,5 +1,14 @@
 # Quick start
 
+> **About 2 minutes with AI:** in Claude Code run `/plugin install shipcrate --marketplace simarpreetsingh-019/shipcrate`,
+> then `/shipcrate:setup`. Other agents: see [AI agents](../agents/).
+>
+> **Under 5 minutes by hand, from a template:** start from a ready-made repo with
+> [Rust](https://github.com/simarpreetsingh-019/shipcrate-template-rust-cli/generate),
+> [Python](https://github.com/simarpreetsingh-019/shipcrate-template-python-cli/generate),
+> [Node](https://github.com/simarpreetsingh-019/shipcrate-template-node-cli/generate) or a
+> [SwiftUI Mac app](https://github.com/simarpreetsingh-019/shipcrate-template-macos-app/generate), then run `sh setup.sh`.
+
 > **Want to see it first?** After installing, run `shipcrate demo`: a 60-second offline demo of a
 > release, the update notice, upgrade, rollback, yank, and a refused tampered download and forged manifest. Ready-to-copy projects for
 > Rust, Python, Node and a SwiftUI Mac app are in [examples/](https://github.com/simarpreetsingh-019/shipcrate/tree/main/examples).

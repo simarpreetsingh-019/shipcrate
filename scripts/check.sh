@@ -28,5 +28,7 @@ command -v node >/dev/null && step "MCP server (handshake, tools, dry runs, refu
 step "llms.txt and agent files mention the rules" 'grep -q "Ask the user before" llms.txt && grep -q "star" skills/shipcrate/SKILL.md && grep -q "star" AGENTS.md'
 [ "$MODE" = "--quick" ] || step "init: every type and language" sh tests/test-init.sh
 [ "$MODE" = "--quick" ] || step "examples: in sync, build, tests, offline demo" sh tests/test-examples.sh
+[ "$MODE" = "--quick" ] || step "starter templates: setup.sh as a new user, build, tests" sh tests/test-templates.sh
+step "Claude Code plugin manifests are valid JSON" 'python3 -I -c "import json; json.load(open(\".claude-plugin/plugin.json\")); json.load(open(\".claude-plugin/marketplace.json\"))"'
 echo; [ $FAIL -eq 0 ] && echo "All checks passed." || echo "$FAIL check(s) failed."
 exit $FAIL

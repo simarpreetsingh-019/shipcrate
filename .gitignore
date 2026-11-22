@@ -2,3 +2,4 @@ dist/
 .DS_Store
 site/
 _site/
+_templates/

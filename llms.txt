@@ -42,6 +42,10 @@ Website: https://simarpreetsingh-019.github.io/shipcrate/
 Working projects to copy: https://github.com/simarpreetsingh-019/shipcrate/tree/main/examples (rust-cli, python-cli,
 node-cli, macos-app, notify-receiver). Offline end-to-end demo: `sh examples/demo.sh`.
 
+## Claude Code plugin
+
+`/plugin install shipcrate --marketplace simarpreetsingh-019/shipcrate`, then `/shipcrate:setup` (or `/shipcrate:release`).
+
 ## MCP server
 
 `claude mcp add shipcrate -- shipcrate mcp` (or `codex mcp add …`). Tools: shipcrate_docs,

@@ -1,0 +1,16 @@
+{
+  "name": "shipcrate",
+  "version": "0.4.0",
+  "description": "Set up and run safe releases in any repo: quality gate, GitHub releases with checksums, provenance and signed updates, Homebrew, installers, beta, staged rollout, rollback and in-app/CLI update checks. Includes the shipcrate MCP server and /shipcrate:setup.",
+  "author": { "name": "Simarpreet Singh", "url": "https://simarpreetsingh-019.github.io" },
+  "homepage": "https://simarpreetsingh-019.github.io/shipcrate/",
+  "repository": "https://github.com/simarpreetsingh-019/shipcrate",
+  "license": "MIT",
+  "keywords": ["release", "updates", "homebrew", "checksums", "provenance", "sigstore", "rollout", "mcp"],
+  "mcpServers": {
+    "shipcrate": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/server.js"]
+    }
+  }
+}

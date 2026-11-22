@@ -13,6 +13,21 @@ system monitor, and made generic. Works by hand, and by AI coding agents through
 
 ## Install
 
+**With AI (about 2 minutes):** in Claude Code:
+
+```text
+/plugin install shipcrate --marketplace simarpreetsingh-019/shipcrate
+/shipcrate:setup
+```
+
+**From a template (under 5 minutes):** click "Use this template" on
+[Rust CLI](https://github.com/simarpreetsingh-019/shipcrate-template-rust-cli) ·
+[Python CLI](https://github.com/simarpreetsingh-019/shipcrate-template-python-cli) ·
+[Node CLI](https://github.com/simarpreetsingh-019/shipcrate-template-node-cli) ·
+[SwiftUI Mac app](https://github.com/simarpreetsingh-019/shipcrate-template-macos-app), then run `sh setup.sh`.
+
+**The command, for an existing project:**
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/simarpreetsingh-019/shipcrate/main/install.sh -o install.sh && sh install.sh
 ```

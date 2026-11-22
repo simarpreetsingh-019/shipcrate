@@ -11,6 +11,33 @@ shipcrate works with any coding agent in three ways. Pick one, or use all three.
 Every option follows the same rules. The agent previews first, asks you before it pushes, publishes, yanks, changes
 a rollout or sends an announcement, and never writes tokens into files.
 
+## Fastest: Claude Code plugin (about 2 minutes)
+
+In Claude Code:
+
+```text
+/plugin install shipcrate --marketplace simarpreetsingh-019/shipcrate
+/shipcrate:setup
+```
+
+That's all you need. The plugin brings the MCP server, the skill and two commands, and you don't install anything
+else.
+
+- `/shipcrate:setup` reads your repo, asks only what it can't work out, previews, writes, wires in update checks,
+  runs the gate and commits locally. Then it stops and asks before pushing or releasing.
+- `/shipcrate:release` writes the changelog from your commits, previews the release, and publishes only after you say yes.
+
+On older Claude Code: `/plugin marketplace add simarpreetsingh-019/shipcrate`, then `/plugin install shipcrate@shipcrate`.
+
+## Any other agent, in one paste
+
+Paste this into Codex, Cursor, Copilot, Gemini or any coding agent:
+
+```text
+Set up releases for this repo with shipcrate. Read https://simarpreetsingh-019.github.io/shipcrate/llms.txt first
+and follow its rules: preview before writing, ask me before pushing, tagging or publishing, never put tokens in files.
+```
+
 ## 1. Install shipcrate (once)
 
 ```sh
