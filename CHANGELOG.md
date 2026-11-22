@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Added
+- **`shipcrate ui`:** a local dashboard for a project, at `http://127.0.0.1:4747`. It shows the live stable release (rollout progress, yanks, announcement), the beta channel, downloads per version and file, releases and the folder's state. Buttons run the gate, doctor, changelog, release preview, stats and webhook test, and, after showing the exact command and asking, rollout, announcements and yank. Local only, with a one-time key in the URL and a local-Host check. Publishing a release stays in the terminal.
+- The demo receiver's live page (`VIEW=1`) updates in place instead of reloading.
 - **`shipcrate webhook test`** (`scripts/webhook-test.sh`): sends signed sample release, security, announcement and yank events to your receiver, and checks it refuses wrong and missing signatures. `--postman FILE` writes a Postman collection with the same samples and HMAC signing; a ready-made one is in `examples/notify-receiver/`.
 - The demo receiver understands `X-Shipcrate-Event: yank`, and with `VIEW=1` shows a live page of accepted and refused messages on localhost.
 

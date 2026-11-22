@@ -19,6 +19,7 @@
 #   shipcrate status                           settings + what's live (version, rollout, yanked, message)
 #   shipcrate stats [--baseline] [--history F] [--repo owner/name]   download numbers from GitHub (no tracking)
 #   shipcrate keygen                           make the signing key for signed updates
+#   shipcrate ui [--port N]                    local dashboard: live release, beta, downloads, checks and actions
 #   shipcrate webhook test --url URL           send signed sample events to your webhook receiver (--postman FILE: a collection)
 #
 # Other:
@@ -231,6 +232,7 @@ case "$cmd" in
   doctor) doctor; exit $? ;;
   demo) exec sh "$KIT/examples/demo.sh" ;;
   mcp) exec node "$KIT/mcp/server.js" ;;
+  ui) command -v node >/dev/null || die "shipcrate ui needs Node 18+"; exec node "$KIT/ui/server.js" "$(project)" "$@" ;;
   self-update)
     if [ -d "$KIT/.git" ]; then git -C "$KIT" pull --ff-only -q && say "✓ shipcrate $(sh "$KIT/bin/shipcrate" version | cut -d' ' -f2)"
     elif command -v brew >/dev/null && brew list shipcrate >/dev/null 2>&1; then brew upgrade shipcrate

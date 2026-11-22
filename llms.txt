@@ -62,7 +62,7 @@ shipcrate_init (a dry run by default), shipcrate_check, shipcrate_release_previe
 - [Everything in one file (llms-full.txt)](https://simarpreetsingh-019.github.io/shipcrate/llms-full.txt)
 
 - [Quick start](https://simarpreetsingh-019.github.io/shipcrate/quickstart/)
-- [Integrating (existing projects, notifications, webhooks + `shipcrate webhook test`, announcements, rollouts)](https://simarpreetsingh-019.github.io/shipcrate/integrating/)
+- [Integrating (existing projects, notifications, webhooks + `shipcrate webhook test`, the `shipcrate ui` dashboard, announcements, rollouts)](https://simarpreetsingh-019.github.io/shipcrate/integrating/)
 - [Platforms](https://simarpreetsingh-019.github.io/shipcrate/platforms/)
 - [Security](https://simarpreetsingh-019.github.io/shipcrate/security/)
 - [AI agents](https://simarpreetsingh-019.github.io/shipcrate/agents/)

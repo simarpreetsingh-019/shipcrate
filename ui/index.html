@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>shipcrate ui</title>
+<style>
+:root{--bg:#f5f5f7;--card:#fff;--fg:#1d1d1f;--mut:#6e6e73;--line:#e3e3e8;--acc:#0a66d8;--acc2:#7c3aed;--ok:#1a7f37;--warn:#b45309;--bad:#c62828;--soft:#eef3fb;--code:#0f1115;--codefg:#e6e6e6;--shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.04)}
+@media (prefers-color-scheme:dark){:root{--bg:#0d0d0f;--card:#17171a;--fg:#f5f5f7;--mut:#a1a1a6;--line:#2a2a2e;--acc:#4c9dff;--acc2:#a78bfa;--ok:#3fb950;--warn:#f0a43a;--bad:#ff6b6b;--soft:#1c2433;--code:#0a0a0c;--codefg:#dcdcdc;--shadow:none}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.bar{max-width:1180px;margin:auto;padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+h1{font-size:18px;margin:0;font-weight:650}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:28px 0 10px;font-weight:600}
+a{color:var(--acc);text-decoration:none}
+main{max-width:1180px;margin:auto;padding:4px 16px 120px}
+.chip{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--mut);white-space:nowrap}
+.chip.ok{color:var(--ok)}.chip.bad{color:var(--bad)}.chip.warn{color:var(--warn)}
+.sp{flex:1}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);padding:7px 12px;border-radius:8px;cursor:pointer}
+button:hover{border-color:var(--acc)}button:disabled{opacity:.5;cursor:default}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+button.danger{color:var(--bad)}button.danger.pri{background:var(--bad);border-color:var(--bad);color:#fff}
+input,select{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);padding:7px 9px;border-radius:8px;min-width:0}
+input[type=range]{padding:0;border:0}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow);min-width:0}
+.card h3{margin:0 0 8px;font-size:13px;color:var(--mut);font-weight:550}
+.big{font-size:28px;font-weight:650;letter-spacing:-.02em}
+.mut{color:var(--mut)}.small{font-size:12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.meter{height:8px;background:var(--soft);border-radius:99px;overflow:hidden;margin:10px 0 4px}
+.meter>i{display:block;height:100%;background:var(--acc);border-radius:99px}
+.note{margin-top:10px;padding:8px 10px;border-radius:8px;background:var(--soft);font-size:13px}
+.note.warning{border-left:3px solid var(--warn)}.note.security{border-left:3px solid var(--bad)}.note.info{border-left:3px solid var(--acc)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--mut);font-weight:550}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.chart{display:flex;align-items:flex-end;gap:6px;height:170px;padding-top:8px;overflow-x:auto}
+.col{flex:1 0 34px;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:34px}
+.col .b{width:100%;border-radius:5px 5px 0 0;background:var(--acc);min-height:2px}
+.col.beta .b{background:var(--acc2)}
+.col span{font-size:11px;color:var(--mut);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.col{flex:1 0 44px;min-width:44px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 4px 0 10px;vertical-align:0}
+.actions{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.act{display:flex;flex-direction:column;gap:8px}
+.act .row{margin:0}
+.act label{font-size:12px;color:var(--mut)}
+.danger-zone{border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
+#console{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--code);color:var(--codefg);border-top:1px solid var(--line);max-height:46vh;display:flex;flex-direction:column;transform:translateY(calc(100% - 38px));transition:transform .2s}
+#console.open{transform:none}
+body.con main{padding-bottom:50vh}
+#console .head{display:flex;gap:10px;align-items:center;padding:8px 16px;font:12px ui-monospace,Menlo,monospace;cursor:pointer}
+#console pre{margin:0;padding:8px 16px 16px;overflow:auto;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:#777}.dot.run{background:#f0a43a;animation:p 1s infinite}.dot.ok{background:#3fb950}.dot.bad{background:#ff6b6b}
+@keyframes p{50%{opacity:.3}}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--fg);max-width:560px;width:calc(100% - 32px);padding:20px}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog code{display:block;background:var(--code);color:var(--codefg);padding:10px;border-radius:8px;font:12px ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all;margin:10px 0}
+.err{color:var(--bad);font-size:12px;min-height:1em}
+.skel{color:var(--mut)}
+.grid.dl{grid-template-columns:2fr 1fr}
+@media (max-width:760px){.grid.dl{grid-template-columns:1fr}}
+@media (max-width:600px){.big{font-size:24px}.actions{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <h1 id="title">shipcrate</h1><span id="chips" class="row" style="margin:0"></span><span class="sp"></span>
+  <span id="updated" class="mut small"></span><button id="refresh">Refresh</button>
+</div></header>
+<main>
+  <h2>Live now</h2>
+  <div class="grid" id="cards"><div class="card skel">Loading from GitHub…</div></div>
+
+  <h2>Downloads</h2>
+  <div class="grid dl">
+    <div class="card"><h3>Per version <span class="legend small mut"><i style="background:var(--acc)"></i>stable<i style="background:var(--acc2)"></i>beta</span></h3><div id="chart" class="chart skel">Loading…</div><div id="statsnote" class="mut small"></div></div>
+    <div class="card"><h3 id="plathead">Newest release by platform</h3><div id="platforms" class="skel">…</div></div>
+  </div>
+
+  <h2>Releases</h2>
+  <div class="card" style="overflow-x:auto"><div id="releases" class="skel">…</div></div>
+
+  <h2>Check and preview <span class="mut" style="text-transform:none;letter-spacing:0">· changes nothing</span></h2>
+  <div class="actions">
+    <div class="card act"><h3>Quality gate</h3><span class="mut small">The same checks as your git hooks and CI.</span>
+      <div class="row"><button data-run="check" data-args='{"quick":true}'>Quick check</button><button data-run="check">Full check</button><button data-run="doctor">Doctor</button></div></div>
+    <div class="card act"><h3>Next release</h3><span class="mut small">Suggested version and notes from your commits, then a full dry run.</span>
+      <div class="row"><button data-run="changelog">Suggest changelog</button><input id="pv" placeholder="1.2.3 or 1.2.3-beta.1" size="18"><button id="preview">Preview release</button></div>
+      <span class="mut small">Publishing stays in the terminal: <code>sh scripts/release.sh X.Y.Z</code></span></div>
+    <div class="card act"><h3>Webhook</h3><span class="mut small">Send signed sample events to your receiver (uses RELEASE_WEBHOOK_SECRET from the environment that started ui).</span>
+      <div class="row"><input id="wu" placeholder="https://… or http://localhost:8787" style="flex:1"><select id="we"><option>all</option><option>release</option><option>security</option><option>announcement</option><option>yank</option></select><button id="webhook">Test</button></div></div>
+    <div class="card act"><h3>Download table</h3><span class="mut small">The text report from <code>shipcrate stats</code>.</span>
+      <div class="row"><button data-run="stats">Show stats</button></div></div>
+  </div>
+
+  <h2>Change what users see <span class="mut" style="text-transform:none;letter-spacing:0">· shows the exact command and asks first</span></h2>
+  <div class="actions">
+    <div class="card act danger-zone"><h3>Rollout</h3><span class="mut small" id="rollnow">Offer the newest release to a share of installed copies.</span>
+      <div class="row"><input type="range" id="rp" min="0" max="100" step="5" value="100" style="flex:1"><b id="rpv">100%</b></div>
+      <div class="row"><label>grow to 100% over <input id="rd" type="number" min="0" max="365" value="0" style="width:70px"> days (0 = fixed)</label><span class="sp"></span><button id="rollout" class="pri">Apply…</button></div></div>
+    <div class="card act danger-zone"><h3>Announcement</h3><span class="mut small">A message every copy shows once at its next daily check. No new version.</span>
+      <input id="am" maxlength="300" placeholder="Maintenance tonight 22:00–23:00 UTC">
+      <div class="row"><select id="al"><option>info</option><option>warning</option><option>security</option></select><input id="au" placeholder="https:// link (optional)" style="flex:1"><input id="ab" placeholder="below version" size="11"></div>
+      <div class="row"><span class="sp"></span><button id="aclear" class="danger">Clear current…</button><button id="announce" class="pri">Send…</button></div></div>
+    <div class="card act danger-zone"><h3>Yank a release</h3><span class="mut small">Pull a bad version: copies on it are sent back to a good one. Files stay downloadable.</span>
+      <div class="row"><select id="yv"></select><span class="mut">→</span><input id="yt" placeholder="back to (default: previous)" style="flex:1"></div>
+      <input id="yr" maxlength="200" placeholder="reason (shown to users)">
+      <div class="row"><span class="sp"></span><button id="yank" class="danger pri">Yank…</button></div></div>
+  </div>
+</main>
+
+<div id="console"><div class="head" id="chead"><span class="dot" id="cdot"></span><span id="ctitle">Output</span><span class="sp"></span><span class="mut">click to show / hide</span></div><pre id="cout">Run a check or an action: its output appears here.</pre></div>
+
+<dialog id="dlg"><h3 style="margin:0">Run this?</h3><p id="dwhat" class="mut" style="margin:8px 0 0"></p><code id="dcmd"></code>
+  <div class="err" id="derr"></div>
+  <div class="row" style="justify-content:flex-end"><button id="dno">Cancel</button><button id="dyes" class="pri">Run it</button></div></dialog>
+
+<script>
+"use strict";
+const T = (location.hash.match(/t=([0-9a-f]+)/) || [])[1] || sessionStorage.getItem("t") || "";
+try { sessionStorage.setItem("t", T); } catch {}
+history.replaceState(null, "", location.pathname);           // keep the token out of the address bar
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const api = async (p, body) => {
+  const r = await fetch("/api/" + p, body ? { method: "POST", headers: { "Content-Type": "application/json", "X-Token": T }, body: JSON.stringify(body) } : { headers: { "X-Token": T } });
+  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.statusText); return j;
+};
+const ago = iso => { if (!iso) return ""; const s = (Date.now() - Date.parse(iso)) / 1000;
+  return s < 3600 ? Math.max(1, Math.round(s / 60)) + " min ago" : s < 86400 ? Math.round(s / 3600) + " h ago" : Math.round(s / 86400) + " days ago"; };
+const nowPct = m => { if (!m) return 100; const start = typeof m.rollout === "number" ? m.rollout : (m.rollout_days > 0 ? 0 : 100);
+  if (!m.rollout_days || !m.published) return start; const f = Math.min(1, Math.max(0, (Date.now() - Date.parse(m.published)) / (m.rollout_days * 864e5)));
+  return Math.min(100, Math.floor(start + (100 - start) * f)); };
+let O = null;
+
+function card(title, inner) { return `<div class="card"><h3>${title}</h3>${inner}</div>`; }
+function manifestCard(title, m, beta) {
+  if (!m) {
+    const lr = !beta && (O.releases || []).find(r => r.isLatest);
+    if (lr) return card(title, `<div class="big">${esc(lr.tagName.replace(/^v/, ""))}</div><div class="mut small">${esc(lr.tagName)} · ${ago(lr.publishedAt)}</div>
+      <div class="note warning">This release has no latest.json (it came before shipcrate), so its copies don't get update checks, rollout or announcements. They start with the next stable release.</div>`);
+    return card(title, `<div class="big mut">—</div><div class="mut small">${beta ? "No beta channel yet (it appears with the first release)." : O.gh ? "No release yet." : "gh isn't signed in: run gh auth login"}</div>`);
+  }
+  const pct = nowPct(m);
+  let h = `<div class="big">${esc(m.version)}</div><div class="mut small">${esc(m.tag)} · ${ago(m.published)}${m.security ? ' · <b style="color:var(--bad)">security</b>' : ""}</div>`;
+  if (!beta) h += `<div class="meter"><i style="width:${pct}%"></i></div><div class="small">${pct}% of copies are offered it${m.rollout_days ? ` · growing to 100% over ${m.rollout_days} days` : ""}</div>`;
+  if (m.yanked && m.yanked.length) h += `<div class="note warning">Yanked: ${m.yanked.map(esc).join(", ")}</div>`;
+  if (m.announcement) h += `<div class="note ${esc(m.announcement.level)}">📣 ${esc(m.announcement.message)}${m.announcement.below ? ` <span class="mut">(below ${esc(m.announcement.below)})</span>` : ""}</div>`;
+  h += `<div class="row small mut">${Object.keys(m.assets || {}).map(p => `<span class="chip">${esc(p)}</span>`).join("")}</div>`;
+  return card(title, h);
+}
+
+async function load() {
+  $("refresh").disabled = true;
+  try {
+    O = await api("overview");
+    $("title").textContent = O.product || "shipcrate";
+    document.title = (O.product || "shipcrate") + " · shipcrate ui";
+    $("chips").innerHTML = [`<a class="chip" href="https://github.com/${esc(O.repo)}" target="_blank" rel="noopener">${esc(O.repo)}</a>`,
+      `<span class="chip">${esc(O.type)} · ${esc(O.lang)}</span>`, `<span class="chip">shipcrate ${esc(O.shipcrate || "?")}</span>`,
+      `<span class="chip ${O.signed ? "ok" : "warn"}">${O.signed ? "signed updates" : "unsigned updates"}</span>`,
+      `<span class="chip ${O.gh ? "ok" : "bad"}">${O.gh ? "gh signed in" : "gh not signed in"}</span>`].join("");
+    const g = O.git;
+    $("cards").innerHTML = manifestCard("Stable (latest.json)", O.latest) + manifestCard("Beta channel (beta.json)", O.beta, true) +
+      card("This folder", `<div class="big">${esc(g.branch)}</div><div class="mut small">${esc(g.head)}</div>
+        <div class="row small"><span class="chip">${g.since} commit(s) since ${esc(g.lastTag || "first release")}</span><span class="chip ${g.dirty ? "warn" : "ok"}">${g.dirty ? g.dirty + " uncommitted" : "clean"}</span></div>`) +
+      card("Downloads", `<div class="big" id="dltotal">…</div><div class="mut small" id="dlsub">counting from GitHub</div>`);
+    const rp = nowPct(O.latest); $("rp").value = rp; $("rpv").textContent = rp + "%";
+    $("rollnow").textContent = O.latest ? `Now: ${rp}% of copies are offered ${O.latest.version}.` : "The newest stable release has no latest.json yet (it came before shipcrate): rollout and announcements start with the next stable release.";
+    for (const id of ["rollout", "announce", "aclear"]) $(id).dataset.off = O.latest ? "" : "1";
+    const rel = O.releases || [];
+    $("releases").innerHTML = rel.length ? `<table><tr><th>Release</th><th>Kind</th><th>Published</th></tr>${rel.map(r => `<tr><td><a href="https://github.com/${esc(O.repo)}/releases/tag/${esc(r.tagName)}" target="_blank" rel="noopener">${esc(r.name || r.tagName)}</a></td><td>${r.isLatest ? '<span class="chip ok">latest</span>' : r.isPrerelease ? '<span class="chip">pre-release</span>' : ""}${/YANKED/.test(r.name) ? ' <span class="chip bad">yanked</span>' : ""}</td><td class="mut">${ago(r.publishedAt)}</td></tr>`).join("")}</table>` : '<span class="mut">No releases yet.</span>';
+    for (const id of ["rollout", "announce", "aclear"]) $(id).disabled = !O.latest;
+    $("yv").innerHTML = rel.filter(r => /^v\d/.test(r.tagName)).map(r => `<option>${esc(r.tagName.slice(1))}</option>`).join("");
+    if (!$("pv").value && O.latest) $("pv").placeholder = "after " + O.latest.version;
+    $("updated").textContent = "updated " + new Date().toLocaleTimeString();
+    loadStats();
+  } catch (e) { $("cards").innerHTML = `<div class="card"><b style="color:var(--bad)">Couldn't load:</b> ${esc(e.message)}</div>`; }
+  $("refresh").disabled = false;
+}
+
+async function loadStats() {
+  try {
+    const s = await api("stats");
+    if (!s.ok) { $("chart").textContent = "Couldn't read downloads: " + s.error; return; }
+    const rows = s.rows.filter(r => r.tag !== "channel" && !/\.(json|sig|sha256|sigstore\.json|spdx\.json)$|SHA256SUMS/.test(r.file));
+    const checks = s.rows.filter(r => /latest\.json$|beta\.json$/.test(r.file)).reduce((a, r) => a + r.count, 0);
+    const by = {}; for (const r of rows) { by[r.tag] ??= { tag: r.tag, beta: r.beta, n: 0, at: r.at }; by[r.tag].n += r.count; }
+    const vs = Object.values(by).sort((a, b) => a.at.localeCompare(b.at)).slice(-14);
+    const max = Math.max(1, ...vs.map(v => v.n)), total = rows.reduce((a, r) => a + r.count, 0);
+    $("chart").classList.remove("skel");
+    $("chart").innerHTML = vs.length ? vs.map(v => `<div class="col ${v.beta ? "beta" : ""}" title="${esc(v.tag)}: ${v.n} downloads"><span>${v.n}</span><div class="b" style="height:${Math.round(120 * v.n / max)}px"></div><span>${esc(v.tag.replace(/^v/, "").replace(/-beta\.?/, " β").replace(/-rc\.?/, " rc"))}</span></div>`).join("") : '<span class="mut">No downloads yet.</span>';
+    $("statsnote").textContent = (s.baseline ? "Your own downloads before the baseline are left out. " : "") + "GitHub's public counts: no tracking.";
+    const stable = rows.filter(r => !r.beta).reduce((a, r) => a + r.count, 0);
+    $("dltotal").textContent = total.toLocaleString();
+    $("dlsub").textContent = `${stable.toLocaleString()} stable · ${(total - stable).toLocaleString()} beta · ${checks.toLocaleString()} update checks`;
+    const newest = vs[vs.length - 1];
+    if (newest) { $("plathead").textContent = `${newest.tag} by file`;
+      const per = rows.filter(r => r.tag === newest.tag).sort((a, b) => b.count - a.count);
+      $("platforms").classList.remove("skel");
+      $("platforms").innerHTML = `<table>${per.map(r => `<tr><td>${esc(r.file)}</td><td class="n">${r.count}</td></tr>`).join("")}</table>`; }
+  } catch (e) { $("chart").textContent = e.message; }
+}
+
+// ---- running things
+let polling = null;
+function showConsole(open) { $("console").classList.toggle("open", open); document.body.classList.toggle("con", open); }
+$("chead").onclick = () => showConsole(!$("console").classList.contains("open"));
+async function run(action, args = {}, confirm) {
+  try {
+    const j = await api("run", { action, args, confirm });
+    showConsole(true); $("ctitle").textContent = "$ " + j.command; $("cdot").className = "dot run"; $("cout").textContent = "";
+    document.querySelectorAll("button").forEach(b => b.disabled = b.id !== "refresh" && b.id !== "dno");
+    clearInterval(polling);
+    polling = setInterval(async () => {
+      const s = await api("job"); const pre = $("cout"), atEnd = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20;
+      pre.textContent = s.out || "…"; if (atEnd) pre.scrollTop = pre.scrollHeight;
+      if (s.done) { clearInterval(polling); $("cdot").className = "dot " + (s.code === 0 ? "ok" : "bad");
+        $("ctitle").textContent = `${s.code === 0 ? "✓" : "✗ exit " + s.code} · $ ${s.command}`;
+        document.querySelectorAll("button").forEach(b => b.disabled = !!b.dataset.off);
+        if (["rollout", "announce", "yank"].includes(s.name)) setTimeout(load, 1500); }
+    }, 700);
+  } catch (e) { showConsole(true); $("cdot").className = "dot bad"; $("ctitle").textContent = "Couldn't start"; $("cout").textContent = e.message; }
+}
+async function ask(action, args, what) {
+  try {
+    const p = await api("plan", { action, args });
+    $("dwhat").textContent = what; $("dcmd").textContent = p.command; $("derr").textContent = "";
+    $("dyes").onclick = () => { $("dlg").close(); run(action, args, p.command); };
+    $("dlg").showModal();
+  } catch (e) { alert(e.message); }
+}
+$("dno").onclick = () => $("dlg").close();
+document.querySelectorAll("[data-run]").forEach(b => b.onclick = () => run(b.dataset.run, b.dataset.args ? JSON.parse(b.dataset.args) : {}));
+$("preview").onclick = () => run("preview", { version: $("pv").value.trim() });
+$("webhook").onclick = () => run("webhook", { url: $("wu").value.trim(), event: $("we").value });
+$("rp").oninput = () => $("rpv").textContent = $("rp").value + "%";
+$("rollout").onclick = () => { const p = +$("rp").value, d = +$("rd").value;
+  ask("rollout", { percent: p, days: d || 0 }, d ? `Grow ${O?.latest?.version || "the newest release"} from ${p}% to 100% over ${d} days, on each copy, by itself.`
+    : `Offer ${O?.latest?.version || "the newest release"} to ${p}% of installed copies${p === 100 ? " (also moves Homebrew to it)" : ""}.`); };
+$("announce").onclick = () => ask("announce", { message: $("am").value, level: $("al").value, url: $("au").value.trim(), below: $("ab").value.trim() },
+  "Every installed copy shows this message once at its next daily check, and your webhook is called.");
+$("aclear").onclick = () => ask("announce", { clear: true }, "Remove the current announcement from latest.json.");
+$("yank").onclick = () => ask("yank", { version: $("yv").value, to: $("yt").value.trim(), reason: $("yr").value.trim() },
+  `Mark ${$("yv").value} as yanked: copies on it are told and \`upgrade\` takes them back; Homebrew and the beta channel move back too.`);
+$("refresh").onclick = load;
+if (!T) document.body.innerHTML = '<main><div class="card" style="margin-top:40px">Open the address that <code>shipcrate ui</code> printed (it includes a one-time key).</div></main>';
+else load();
+</script>
+</body>
+</html>

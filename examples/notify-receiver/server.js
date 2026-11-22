@@ -59,7 +59,7 @@ const note = (event, ok, text) => { seen.unshift({ time: new Date().toISOString(
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function page() {
   const rows = seen.map(e => `<tr class="${e.ok ? "ok" : "no"}"><td>${esc(e.time.slice(11, 19))}</td><td>${esc(e.event)}</td><td>${e.ok ? "✔ accepted" : "✗ refused"}</td><td>${esc(e.text)}</td></tr>`).join("");
-  return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="2">
+  return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Webhook receiver</title><style>
 :root{--bg:#fff;--fg:#1d1d1f;--mut:#6e6e73;--line:#e5e5ea;--ok:#1a7f37;--no:#c62828}
 @media (prefers-color-scheme:dark){:root{--bg:#111;--fg:#f5f5f7;--mut:#a1a1a6;--line:#2c2c2e;--ok:#3fb950;--no:#ff6b6b}}
@@ -67,9 +67,22 @@ body{background:var(--bg);color:var(--fg);font:15px/1.45 -apple-system,system-ui
 h1{font-size:22px;margin:0 0 4px}p{color:var(--mut);margin:0 0 20px}table{width:100%;border-collapse:collapse}
 td,th{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mut);font-weight:500;font-size:13px}
 td:nth-child(3){white-space:nowrap}tr.ok td:nth-child(3){color:var(--ok)}tr.no td:nth-child(3){color:var(--no)}td:first-child{font-variant-numeric:tabular-nums;color:var(--mut)}
-</style><h1>shipcrate webhook receiver</h1><p>Port ${PORT} · signature check ${SECRET ? "on" : "off"} · ${seen.length} message(s) · refreshes every 2 s.
+</style><h1>shipcrate webhook receiver</h1><p>Port ${PORT} · signature check ${SECRET ? "on" : "off"} · ${seen.length} message(s) · updates live.
 Send some: <code>shipcrate webhook test --url http://localhost:${PORT}</code></p>
-<table><tr><th>Time (UTC)</th><th>Event</th><th>Result</th><th>Message</th></tr>${rows || '<tr><td colspan="4">Nothing yet.</td></tr>'}</table>`;
+<table><tbody id="t"><tr><th>Time (UTC)</th><th>Event</th><th>Result</th><th>Message</th></tr>${rows || '<tr><td colspan="4">Nothing yet.</td></tr>'}</tbody></table>
+<script>
+// Update only the table when something new arrives (no page reloads).
+const esc = t => String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let last = ${JSON.stringify(seen[0] ? seen[0].time + seen.length : "")};
+setInterval(async () => {
+  try {
+    const ev = await (await fetch("/events.json", { cache: "no-store" })).json();
+    const key = ev[0] ? ev[0].time + ev.length : ""; if (key === last) return; last = key;
+    document.getElementById("t").innerHTML = '<tr><th>Time (UTC)</th><th>Event</th><th>Result</th><th>Message</th></tr>' + ev.map(e =>
+      '<tr class="' + (e.ok ? "ok" : "no") + '"><td>' + esc(e.time.slice(11, 19)) + '</td><td>' + esc(e.event) + '</td><td>' + (e.ok ? "✔ accepted" : "✗ refused") + '</td><td>' + esc(e.text) + '</td></tr>').join("");
+  } catch {}
+}, 1500);
+</script>`;
 }
 
 function createServer() {
@@ -78,7 +91,7 @@ function createServer() {
       const local = ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress);
       if (!local) { res.writeHead(403).end(); return; }
       if (req.url === "/events.json") { res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(seen)); return; }
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'" }).end(page()); return;
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'" }).end(page()); return;
     }
     if (req.method !== "POST") { res.writeHead(405).end(); return; }
     const chunks = []; let size = 0;

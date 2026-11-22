@@ -91,6 +91,11 @@ would. With `RELEASE_WEBHOOK_SECRET` set, each is sent signed (must be accepted)
 (both must be refused). Nothing is released. `--print EVENT` shows a sample body, and `--postman FILE` writes a
 Postman collection with the same samples and signing, if your team tests APIs there.
 
+**A dashboard instead of commands:** `shipcrate ui` opens a local page with the live release, rollout, beta
+channel and downloads, and buttons for checks, previews, the webhook test, rollout, announcements and yank (each
+of the last three shows the exact command and asks first). It runs only on your machine and needs the one-time
+key in the address it prints, so other websites and programs can't press its buttons.
+
 **Working demo:** [examples/notify-receiver](https://github.com/simarpreetsingh-019/shipcrate/tree/main/examples/notify-receiver)
 is a small Node server with no dependencies that verifies the signature and forwards each release to Slack,
 Discord or your own push gateway. Run it locally in two minutes, then deploy it behind HTTPS.

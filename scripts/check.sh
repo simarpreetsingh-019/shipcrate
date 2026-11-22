@@ -25,6 +25,7 @@ if command -v shellcheck >/dev/null 2>&1; then
 else printf "• %-44s– optional: brew install shellcheck\n" "shellcheck"; fi
 command -v node >/dev/null && step "demo notification receiver" node --test examples/notify-receiver/server.test.js
 command -v node >/dev/null && step "MCP server (handshake, tools, dry runs, refusals)" node --test mcp/server.test.js
+command -v node >/dev/null && step "shipcrate ui (token, local host, confirm, checked arguments)" node --test ui/server.test.js
 step "llms.txt and agent files mention the rules" 'grep -q "Ask the user before" llms.txt && grep -q "star" skills/shipcrate/SKILL.md && grep -q "star" AGENTS.md'
 [ "$MODE" = "--quick" ] || step "init: every type and language" sh tests/test-init.sh
 [ "$MODE" = "--quick" ] || step "examples: in sync, build, tests, offline demo" sh tests/test-examples.sh
