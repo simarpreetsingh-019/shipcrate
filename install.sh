@@ -7,7 +7,7 @@
 #
 # It clones the newest release tag of shipcrate into ~/.shipcrate (or updates it) and links
 # ~/.local/bin/shipcrate (or /usr/local/bin if writable) to it. Nothing else is touched. Needs git.
-# Options (environment): SHIPCRATE_HOME=~/.shipcrate  BIN_DIR=…  VERSION=v0.4.0
+# Options (environment): SHIPCRATE_HOME=~/.shipcrate  BIN_DIR=…  VERSION=v0.5.0
 set -eu
 REPO=https://github.com/simarpreetsingh-019/shipcrate
 HOME_DIR="${SHIPCRATE_HOME:-$HOME/.shipcrate}"

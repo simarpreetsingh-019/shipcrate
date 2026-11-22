@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-22
+
 ### Fixed (important)
 - **The gate flagged every project's own `TOKEN` name as a credential** when the name had 8+ characters (e.g. `makereel`): the exclusion never matched `grep -n` output. Found on makereel.
 - **`shipcrate sync` could stop before finishing** (exit 1, version not recorded) when the last file it checked was edited. Found on msh.
