@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-23
+
 ### Added
 - **`shipcrate ui`:** a local dashboard for a project, at `http://127.0.0.1:4747`. It shows the live stable release (rollout progress, yanks, announcement), the beta channel, downloads per version and file, releases and the folder's state. Buttons run the gate, doctor, changelog, release preview, stats and webhook test, and, after showing the exact command and asking, rollout, announcements and yank. Local only, with a one-time key in the URL and a local-Host check. Publishing a release stays in the terminal.
 - **`shipcrate ui` gets four tabs.** *Stats:* totals, stable vs beta, update checks, downloads per version and per platform, downloads per day and running totals from the daily snapshots (7/30/90 days or all), the newest release's rollout curve with a "now" marker, CSV export, and baseline set/clear. *Actions:* a rollout scheduler with a live curve, an announcement preview (terminal and app), and a step-by-step yank checklist. *Settings:* safe-rollout days, snapshots, where builds run, Homebrew tap, platforms and the credit line, saved to `release.conf` only after you review the diff (settings missing from older files are added with their default); `shipcrate sync` from the page; signed updates explained. Page preferences (start tab, auto-refresh) stay in the browser.

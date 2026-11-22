@@ -14,7 +14,7 @@ const crypto = require("node:crypto");
 const { execFile } = require("node:child_process");
 
 const KIT = path.resolve(__dirname, "..");
-const VERSION = "0.5.0";
+const VERSION = "0.5.1";
 const REPO_URL = "https://github.com/simarpreetsingh-019/shipcrate";
 const INSTRUCTIONS = `shipcrate sets up releases (quality gate, GitHub releases with checksums and provenance, Homebrew,
 installers, update checks for macOS/Linux/Windows) in the user's repository.
