@@ -1,6 +1,6 @@
 {
   "name": "shipcrate",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Set up and run safe releases in any repo: quality gate, GitHub releases with checksums, provenance and signed updates, Homebrew, installers, beta, staged rollout, rollback and in-app/CLI update checks. Includes the shipcrate MCP server and /shipcrate:setup.",
   "author": { "name": "Simarpreet Singh", "url": "https://simarpreetsingh-019.github.io" },
   "homepage": "https://simarpreetsingh-019.github.io/shipcrate/",

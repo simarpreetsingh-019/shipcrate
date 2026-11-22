@@ -4,7 +4,7 @@ title: shipcrate
 url: https://simarpreetsingh-019.github.io
 baseurl: /shipcrate
 description: Release and update tooling for your products, in one command.
-version: "0.5.1"     # shown on the site and in structured data; bump with each release
+version: "0.6.0"     # shown on the site and in structured data; bump with each release
 plugins:
   - jekyll-sitemap   # /sitemap.xml for search engines
 markdown: kramdown

@@ -28,7 +28,7 @@
 #   shipcrate demo                     60-second offline demo        shipcrate mcp       run the MCP server (stdio)
 #   shipcrate self-update              update shipcrate itself       shipcrate version
 set -eu
-KIT_VERSION=0.5.1
+KIT_VERSION=0.6.0
 # Resolve symlinks (Homebrew and ~/.local/bin install a link to this file).
 SELF="$0"; while [ -L "$SELF" ]; do L=$(readlink "$SELF"); case "$L" in /*) SELF="$L" ;; *) SELF="$(dirname "$SELF")/$L" ;; esac; done
 KIT=$(cd "$(dirname "$SELF")/.." && pwd)
