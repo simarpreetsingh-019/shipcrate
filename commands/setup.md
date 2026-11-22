@@ -14,7 +14,8 @@ Set up shipcrate in the current repository, quickly and safely. Extra wishes fro
 3. **Preview** with the `shipcrate_init` tool (it's a dry run by default), then run it with `dry_run=false`. It
    never overwrites existing files.
 4. Make `BUILD_CMD`, `ARTIFACT` and `VERSION_CMD` in `release.conf` match the project's real build.
-5. **Wire in the update check** from `updater/` (instructions at the top of each file): call notify/check after
+5. **Wire in the update check:** move the file from `updater/` into the code (Rust: `src/update.rs` + `mod update;`;
+   Python: into the package; Swift: into the app target; Node: require it). The top comment lists the API. Call notify/check after
    interactive commands and add `upgrade [--rollback]` for CLIs; for Swift apps add `UpdateButton`,
    `AnnouncementBanner` and `announceLaunch()`.
 6. If the user agreed, run `sh scripts/keygen.sh`. It asks before storing the GitHub secret; never print the key.

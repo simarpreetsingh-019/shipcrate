@@ -297,9 +297,9 @@ done
 # Build output must never be committed (and must not make the tree look dirty before a release).
 if ! grep -qxE '/?dist/?' "$TARGET/.gitignore" 2>/dev/null; then printf 'dist/\n' >> "$TARGET/.gitignore"; say "  added dist/ to       .gitignore"; fi
 say ""
-say "Next:"
-say "  1. Read release.conf: check BUILD_CMD, ARTIFACT and VERSION_CMD match your project."
-say "  2. sh scripts/install-hooks.sh      # gate on every commit and push"
-say "  3. sh scripts/check.sh              # run the gate once"
-say "  4. Wire in the update check from updater/ (see the comment at its top)."
-say "  5. sh scripts/release.sh 0.1.0 --dry-run, then without --dry-run when you're ready."
+say "Next (the same order /shipcrate:setup follows):"
+say "  1. release.conf: check BUILD_CMD, ARTIFACT and VERSION_CMD match your build."
+say "  2. Wire in the update check: move the file from updater/ into your code (its top comment shows how)."
+say "  3. Signed updates (recommended): sh scripts/keygen.sh"
+say "  4. sh scripts/install-hooks.sh && sh scripts/check.sh"
+say "  5. Commit, push, then: sh scripts/release.sh 0.1.0 --dry-run"

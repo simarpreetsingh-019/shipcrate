@@ -5,7 +5,15 @@
 //! Nothing about the user or machine is sent; no telemetry. Off with `HELLO_SHIP_NO_UPDATE_CHECK=1`;
 //! never runs in CI or without a terminal.
 //!
-//! Use (in main.rs):  `mod update;`
+//! Put this file at src/update.rs (move it from updater/), then in main.rs: `mod update;`
+//! (or keep it here and write: `#[path = "../updater/update.rs"] mod update;`)
+//!
+//! API:  notify(current)                              — one-line notice / announcement, once a day, terminals only
+//!       check(current) -> Option<Latest>             — the same check, for your own UI
+//!       announcement(current) -> Option<Announcement>
+//!       upgrade(current, rollback) -> Result<String, String>   — Ok(message to print) or Err(reason)
+//!
+//! Use (in main.rs):
 //!   built-in one-line notice after an interactive command:  update::notify(env!("CARGO_PKG_VERSION"));
 //!   your own notification system instead:  if let Some(l) = update::check(env!("CARGO_PKG_VERSION")) { my_notify(&l) }
 //!   `hello-ship upgrade [--rollback]`:  update::upgrade(env!("CARGO_PKG_VERSION"), rollback)

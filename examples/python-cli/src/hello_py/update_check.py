@@ -4,6 +4,9 @@ Privacy: at most once a day, one anonymous GET of the release manifest (latest.j
 Nothing about the user or machine is sent; no telemetry. Off with HELLO_PY_NO_UPDATE_CHECK=1; never runs in CI
 or without a terminal.
 
+Put this file inside your package (e.g. src/yourtool/update_check.py; it starts in updater/).
+API: notify(current) · check(current) -> dict|None · announcement(current) · upgrade(current, rollback=False) -> str
+
 Use:
     from . import update_check
     update_check.notify(__version__)                 # built-in one-line notice after an interactive command

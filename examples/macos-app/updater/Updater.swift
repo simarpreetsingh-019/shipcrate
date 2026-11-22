@@ -5,6 +5,9 @@
 // Releases whose notes contain "[security]" (scripts/release.sh --security) get a stronger, red notice.
 // Opt out: `defaults write com.example.helloship autoUpdateCheck -bool false` or the HELLOSHIP_NO_UPDATE_CHECK env var.
 //
+// Add this file to your app target (it starts in updater/). API: Updater.shared.check(userInitiated:),
+// .available (Release?), .promptInstall(), .updateNow(), .announceLaunch(), Updater.channel; views UpdateButton,
+// AnnouncementBanner; hooks onUpdateAvailable, onAnnouncement.
 // Use:  @StateObject var updater = Updater.shared  …  UpdateButton(updater: updater)
 //       call `Updater.shared.announceLaunch()` once at startup to show "What's new" after an update.
 

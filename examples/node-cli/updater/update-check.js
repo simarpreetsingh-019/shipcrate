@@ -4,6 +4,8 @@
 // Nothing about the user or machine is sent; no telemetry. Off with HELLO_NODE_NO_UPDATE_CHECK=1; never runs in CI
 // or without a terminal.
 //
+// Require it from where it is (updater/update-check.js) or move it next to your code.
+// API: notify(v) · check(v) → release|null · announcement(v) · upgrade(v, rollback) → Promise<string>
 // Use:  const update = require("./update-check");
 //       await update.notify(version);                        // built-in one-line notice
 //       const latest = await update.check(version);          // or feed your own notification system
