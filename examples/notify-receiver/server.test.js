@@ -11,6 +11,8 @@ const sign = body => "sha256=" + crypto.createHmac("sha256", "test-secret").upda
 
 test("summaries", () => {
   assert.match(summarize("release", manifest), /Security update: msh 0\.3\.0 \(macos-arm64, linux-x64\)/);
+  assert.match(summarize("yank", { name: "msh", yanked: ["0.3.0"], announcement: { message: "please update" } }), /⚠️ msh: please update/);
+  assert.match(summarize("yank", { name: "msh", yanked: ["0.3.0"] }), /⚠️ msh: 0\.3\.0 was withdrawn/);
   assert.match(summarize("announcement", { name: "msh", announcement: { message: "Maintenance tonight", url: "https://x.y" } }), /📣 msh: Maintenance tonight · https:\/\/x\.y/);
 });
 

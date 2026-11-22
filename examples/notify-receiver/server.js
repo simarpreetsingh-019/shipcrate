@@ -29,6 +29,9 @@ function verify(raw, header) {
 // Turn the manifest into one human line.
 function summarize(event, m) {
   const name = m.name || "your app";
+  if (event === "yank") {
+    return `⚠️ ${name}: ${m.announcement ? m.announcement.message : `${(m.yanked || []).join(", ") || "a version"} was withdrawn`}`;
+  }
   if (event === "announcement") {
     const a = m.announcement;
     return a ? `📣 ${name}: ${a.message}${a.url ? " · " + a.url : ""}` : `📣 ${name}: announcement cleared`;
@@ -60,7 +63,7 @@ function createServer() {
       if (!verify(raw, req.headers["x-shipcrate-signature"])) { res.writeHead(401).end("bad signature\n"); return; }
       let m;
       try { m = JSON.parse(raw); } catch { res.writeHead(400).end("bad json\n"); return; }
-      const event = req.headers["x-shipcrate-event"] === "announcement" ? "announcement" : "release";
+      const event = ["announcement", "yank"].includes(req.headers["x-shipcrate-event"]) ? req.headers["x-shipcrate-event"] : "release";
       const text = summarize(event, m);
       console.log(`[${new Date().toISOString()}] ${event}: ${text}`);
       res.writeHead(202).end("ok\n");      // answer fast; shipcrate doesn't wait for your fan-out

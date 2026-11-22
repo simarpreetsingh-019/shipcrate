@@ -85,6 +85,12 @@ ok = hmac.compare_digest(request.headers["X-Shipcrate-Signature"],
 
 A failed webhook never undoes a release. It prints a warning, and you can re-send it with `sh scripts/notify.sh`.
 
+**Test your receiver before a real release.** `shipcrate webhook test --url https://your-host/shipcrate` (or
+`sh scripts/webhook-test.sh`) sends the same messages a release, a security release, an announcement and a yank
+would. With `RELEASE_WEBHOOK_SECRET` set, each is sent signed (must be accepted), wrongly signed and unsigned
+(both must be refused). Nothing is released. `--print EVENT` shows a sample body, and `--postman FILE` writes a
+Postman collection with the same samples and signing, if your team tests APIs there.
+
 **Working demo:** [examples/notify-receiver](https://github.com/simarpreetsingh-019/shipcrate/tree/main/examples/notify-receiver)
 is a small Node server with no dependencies that verifies the signature and forwards each release to Slack,
 Discord or your own push gateway. Run it locally in two minutes, then deploy it behind HTTPS.

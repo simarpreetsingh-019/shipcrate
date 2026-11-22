@@ -19,6 +19,7 @@
 #   shipcrate status                           settings + what's live (version, rollout, yanked, message)
 #   shipcrate stats [--baseline] [--history F] [--repo owner/name]   download numbers from GitHub (no tracking)
 #   shipcrate keygen                           make the signing key for signed updates
+#   shipcrate webhook test --url URL           send signed sample events to your webhook receiver (--postman FILE: a collection)
 #
 # Other:
 #   shipcrate demo                     60-second offline demo        shipcrate mcp       run the MCP server (stdio)
@@ -210,6 +211,7 @@ case "$cmd" in
   yank) script yank "$@" ;;
   announce) script announce "$@" ;;
   keygen) script keygen "$@" ;;
+  webhook) [ "${1:-}" = test ] && shift; script webhook-test "$@" ;;
   stats) if [ "${1:-}" = --repo ]; then R="${2:?--repo owner/name}"; shift 2; SHIPCRATE_REPO="$R" exec sh "$T/common/scripts/stats.sh" "$@"; fi
          script stats "$@" ;;
   new)

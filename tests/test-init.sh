@@ -73,5 +73,20 @@ sed -i.bak "s/^STATS_SNAPSHOTS=.*/STATS_SNAPSHOTS='on'/" "$SN/release.conf" && r
 ( cd "$SN" && git init -q && sh "$OLDPWD/bin/shipcrate" sync --allow-dev --yes >/dev/null 2>&1 )
 [ -f "$SN/.github/workflows/stats.yml" ] && ok "sync adds the Stats workflow when snapshots are turned on" || bad "sync didn't add stats.yml"
 
+# webhook-test.sh: valid sample bodies, a valid Postman collection, and a full run against the demo receiver.
+WH="$WORK/wh"; mkdir -p "$WH"; sh bin/shipcrate init "$WH" --yes --name wh --type cli --lang python --repo e/wh >/dev/null
+okj=1; for e in release security announcement yank; do (cd "$WH" && sh scripts/webhook-test.sh --print $e) | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null || okj=0; done
+[ $okj = 1 ] && ok "webhook samples are valid JSON" || bad "a webhook sample isn't valid JSON"
+(cd "$WH" && sh scripts/webhook-test.sh --postman c.json >/dev/null) && python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert len(d["item"])==5' "$WH/c.json" 2>/dev/null && ok "Postman collection is valid" || bad "Postman collection is invalid"
+if command -v node >/dev/null && command -v openssl >/dev/null; then
+  PORTW=$(python3 -I -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
+  RELEASE_WEBHOOK_SECRET=t PORT=$PORTW node examples/notify-receiver/server.js >/dev/null 2>&1 & RP=$!
+  i=0; until curl -s "http://127.0.0.1:$PORTW" >/dev/null 2>&1 || [ $i -ge 50 ]; do i=$((i+1)); sleep 0.1; done
+  (cd "$WH" && RELEASE_WEBHOOK_SECRET=t sh scripts/webhook-test.sh --url "http://127.0.0.1:$PORTW" >/dev/null) && ok "webhook test passes against the demo receiver" || bad "webhook test failed against the demo receiver"
+  OUTW=$(cd "$WH" && RELEASE_WEBHOOK_SECRET=wrong sh scripts/webhook-test.sh --url "http://127.0.0.1:$PORTW" --event yank 2>&1 || true)
+  printf '%s' "$OUTW" | grep -q 'yank: signed (accepted) *401' && ok "webhook test catches a wrong secret" || bad "webhook test missed a wrong secret: $OUTW"
+  kill $RP 2>/dev/null; wait $RP 2>/dev/null || true
+fi
+
 echo; [ $FAIL -eq 0 ] && echo "All init tests passed." || echo "$FAIL init test(s) failed."
 exit $FAIL

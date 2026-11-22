@@ -22,6 +22,18 @@ curl -X POST localhost:8787 -H "X-Shipcrate-Signature: sha256=$sig" -H "X-Shipcr
 
 Terminal 1 prints `🚀 New release: msh 0.3.0 (macos-arm64) · https://example.com`. An unsigned request gets `401`.
 
+**Test every event at once.** In a project set up with shipcrate, this sends the real message shapes for a
+release, a security release, an announcement and a yank, each signed, wrongly signed and unsigned:
+
+```sh
+RELEASE_WEBHOOK_SECRET=dev-secret shipcrate webhook test --url http://localhost:8787
+```
+
+**Postman:** import [shipcrate-webhooks.postman_collection.json](shipcrate-webhooks.postman_collection.json), set
+the collection variables `url` and `secret`, and run it. A pre-request script signs each body, and the tests
+check accepted (2xx) and refused (4xx). For your own project's names, generate one:
+`shipcrate webhook test --postman webhooks.postman_collection.json`.
+
 ## Use it for real
 
 1. Deploy `server.js` anywhere that runs Node 18+ (a small VM, Fly.io, Render, a container) behind **HTTPS**.

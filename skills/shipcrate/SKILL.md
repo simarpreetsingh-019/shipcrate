@@ -80,5 +80,5 @@ It changes what every installed copy sees, so show the user the exact text and g
 ## Files it adds
 
 `release.conf` · `scripts/{check,release,build-release,release-notes,install-hooks}.sh` · `.githooks/` ·
-`scripts/{lib,manifest,notify,announce,ci-tools}.sh` · `.github/workflows/{ci,release}.yml` · `install.sh` (+ `install.ps1` for Windows targets) ·
+`scripts/{lib,manifest,notify,webhook-test,announce,ci-tools}.sh` · `.github/workflows/{ci,release}.yml` · `install.sh` (+ `install.ps1` for Windows targets) ·
 `packaging/homebrew/<name>.rb` · `updater/` · `tests/shipcrate/` · `SECURITY.md` · `CHANGELOG.md` · `RELEASING.md`
