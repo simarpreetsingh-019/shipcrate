@@ -24,6 +24,14 @@ system monitor, and made generic. Works by hand, and by AI coding agents through
 `sh start.sh` and pick Rust CLI, Python CLI, Node CLI or SwiftUI Mac app. It becomes one clean, ready-to-release
 project named after your repo. With the command installed: `shipcrate new rust-cli myapp`.
 
+**In a GitHub workflow:**
+
+```yaml
+- uses: simarpreetsingh-019/shipcrate@v1
+  with:
+    command: check        # or doctor, stats, status, changelog, release-notes
+```
+
 **The command, for an existing project:**
 
 ```sh

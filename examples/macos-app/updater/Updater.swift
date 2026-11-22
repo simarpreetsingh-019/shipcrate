@@ -283,7 +283,9 @@ final class Updater: ObservableObject {
                 let zipFile = tmp.appendingPathComponent(Self.asset)
                 try zip.write(to: zipFile)
                 guard Self.run("/usr/bin/ditto", ["-x", "-k", zipFile.path, tmp.path]) == 0 else { return self.fail("couldn't unzip") }
-                let newApp = tmp.appendingPathComponent(target.lastPathComponent)
+                // The .app inside the download, whatever the installed copy was renamed to (e.g. "HelloShip 2.app").
+                guard let newApp = (try? FileManager.default.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil))?
+                        .first(where: { $0.pathExtension == "app" }) else { return self.fail("no app in the download") }
                 guard Bundle(url: newApp)?.bundleIdentifier == Self.bundleID,
                       Self.run("/usr/bin/codesign", ["--verify", "--deep", "--strict", newApp.path]) == 0
                 else { return self.fail("downloaded app failed verification") }

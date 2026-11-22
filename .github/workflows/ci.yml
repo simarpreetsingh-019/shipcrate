@@ -36,3 +36,33 @@ jobs:
         run: ./tests/parse-ps1.ps1 "$env:RUNNER_TEMP/w/install.ps1"
       - name: Shipped tests (scripts + Rust updater)
         run: cd "$RUNNER_TEMP/w" && git init -q && sh tests/shipcrate/run.sh
+  action:
+    # The GitHub Action (action.yml) works from a workflow, run against the example projects.
+    if: github.repository == 'simarpreetsingh-019/shipcrate'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: check (quick) on the Python example
+        uses: ./
+        with:
+          command: check
+          args: --quick
+          working-directory: examples/python-cli
+      - name: release-notes on the Rust example
+        id: notes
+        uses: ./
+        with:
+          command: release-notes
+          args: "1.0.0"
+          working-directory: examples/rust-cli
+      - name: the output is usable in later steps
+        env:
+          NOTES: ${{ steps.notes.outputs.output }}
+        run: printf '%s' "$NOTES" | grep -q "What's new"
+      - name: unknown commands are refused
+        id: bad
+        continue-on-error: true
+        uses: ./
+        with:
+          command: release
+      - run: test "${{ steps.bad.outcome }}" = failure

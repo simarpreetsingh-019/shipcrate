@@ -4,6 +4,8 @@
 
 ### Added
 - **Claude Code plugin:** `/plugin install shipcrate --marketplace simarpreetsingh-019/shipcrate` brings the MCP server, skill, `/shipcrate:setup` (about 2 minutes) and `/shipcrate:release`.
+- **GitHub Action:** `uses: simarpreetsingh-019/shipcrate@v1` runs check, doctor, stats, status, changelog or release-notes in any workflow. Publishing stays in your terminal.
+- Swift updater: updates now work when the app was renamed (e.g. "App 2.app"); first found and fixed in Thermo.
 - **New projects in under 5 minutes:** `shipcrate new <rust-cli|python-cli|node-cli|macos-app> <dir>`, or **Use this template** on the shipcrate repo followed by `sh start.sh`; either way you get one ready-to-release project renamed after your repo. shipcrate's own workflows skip in repos made from the template. `tests/test-templates.sh` runs every path as a new user.
 - `tools/ci-local.sh`: run the Linux CI job locally in Docker before pushing.
 

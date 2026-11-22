@@ -1,0 +1,50 @@
+# shipcrate as a GitHub Action: run shipcrate in any workflow without installing it.
+#   - uses: simarpreetsingh-019/shipcrate@v1
+#     with:
+#       command: check            # check | doctor | stats | status | changelog | release-notes | new | init
+#       args: "--release"
+name: shipcrate
+description: Safe releases and updates — quality gate, checksums, provenance, signed updates, Homebrew, rollout, rollback.
+author: Simarpreet Singh
+branding:
+  icon: package
+  color: orange
+inputs:
+  command:
+    description: "shipcrate command: check, doctor, stats, status, changelog, release-notes (prints notes for a version), init, new"
+    required: false
+    default: check
+  args:
+    description: Extra arguments for the command (e.g. "--release" for check, a version for release-notes)
+    required: false
+    default: ""
+  working-directory:
+    description: Project folder (the one with release.conf)
+    required: false
+    default: "."
+outputs:
+  output:
+    description: What the command printed (last 64 KB)
+    value: ${{ steps.run.outputs.output }}
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SHIPCRATE_CMD: ${{ inputs.command }}
+        SHIPCRATE_ARGS: ${{ inputs.args }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -o pipefail
+        case "$SHIPCRATE_CMD" in
+          check|doctor|stats|status|changelog|init|new) ;;
+          release-notes) ;;
+          *) echo "::error::command must be one of check, doctor, stats, status, changelog, release-notes, init, new (releasing is done from your terminal, with your approval)"; exit 2 ;;
+        esac
+        # Arguments are split on spaces only (no shell evaluation of user input).
+        set -f; set -- $SHIPCRATE_ARGS; set +f
+        if [ "$SHIPCRATE_CMD" = release-notes ]; then OUT=$(sh scripts/release-notes.sh "$@" 2>&1 | tee /dev/stderr)
+        else OUT=$(sh "$GITHUB_ACTION_PATH/bin/shipcrate" "$SHIPCRATE_CMD" "$@" 2>&1 | tee /dev/stderr); fi
+        { echo "output<<SHIPCRATE_EOF"; printf '%s\n' "$OUT" | tail -c 65536; echo "SHIPCRATE_EOF"; } >> "$GITHUB_OUTPUT"
