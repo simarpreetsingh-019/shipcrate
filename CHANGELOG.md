@@ -13,6 +13,9 @@
 - **`release.sh --trust-ci`:** when CI passed on this exact commit, the release skips re-running the whole gate locally (it still requires a clean tree and SECURITY.md). Without the flag, the release says when this applies.
 
 ### Fixed
+- **`changelog.sh` suggested 1.9.1 after 1.10.0 betas:** betas name the next stable version, so it now suggests 1.10.0 (a bigger bump still wins; betas of older versions are ignored). Found by `shipcrate ui` on Thermo.
+- **`shipcrate ui` hardening from edge-case tests:** free text (announcement, yank reason) can't start with "-" or hold control characters (a message "--clear" would have been read as a flag), unknown webhook events and non-object arguments are refused, oversized requests get 413, a busy port gives a clear message, and old projects missing a script are told to run `shipcrate sync`.
+- **`webhook test`:** a receiver that isn't running says "no answer", and a receiver that accepts wrong or missing signatures gets a warning that anyone could fake a release.
 - `shipcrate sync` refused a checkout at a release tag when the `v1` tag pointed at the same commit.
 
 ## [0.5.0] - 2026-11-22

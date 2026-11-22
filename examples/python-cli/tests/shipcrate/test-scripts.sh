@@ -153,6 +153,16 @@ c "feat!: new config format"
 [ "$(sh scripts/changelog.sh --version)" = 2.0.0 ] || fail "breaking should be a major"
 sh scripts/changelog.sh --write >/dev/null && grep -q '^## \[2.0.0\]' CHANGELOG.md && grep -q 'Breaking' CHANGELOG.md || fail "--write didn't add the section"
 [ "$(grep -n '^## \[' CHANGELOG.md | head -1 | cut -d'[' -f2 | cut -d']' -f1)" = 2.0.0 ] || fail "new section should be on top"
+# Betas name the next stable version: after 2.0.0, 2.1.0-beta.2 + a fix → 2.1.0 (not 2.0.1); a beta of an older
+# version is ignored; a bigger bump than the beta wins.
+git add -A && git commit -qm "docs: changelog" --no-verify && git tag v2.0.0
+c "fix: one"; git tag v2.1.0-beta.1; c "fix: two"; git tag v2.1.0-beta.2; c "fix: three"
+[ "$(sh scripts/changelog.sh --version)" = 2.1.0 ] || fail "after 2.1.0 betas, a fix should suggest 2.1.0, got $(sh scripts/changelog.sh --version)"
+git tag v1.9.9-beta.1
+[ "$(sh scripts/changelog.sh --version)" = 2.1.0 ] || fail "a beta of an older version changed the suggestion"
+c "feat!: breaking"
+[ "$(sh scripts/changelog.sh --version)" = 3.0.0 ] || fail "a breaking change after 2.1.0 betas should suggest 3.0.0"
+git tag -d v2.0.0 v2.1.0-beta.1 v2.1.0-beta.2 v1.9.9-beta.1 >/dev/null   # the tests below expect v1.2.3 as the last release
 # release.sh: one release at a time (a second one is refused while the first runs)
 printf '%s %s %s\n' "$$" "$(hostname 2>/dev/null || echo here)" "9.9.9" > "$(git rev-parse --git-dir)/shipcrate-release.lock"
 OUT=$(sh scripts/release.sh 9.9.10 --yes 2>&1 || true)

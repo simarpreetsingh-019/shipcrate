@@ -85,6 +85,18 @@ if command -v node >/dev/null && command -v openssl >/dev/null; then
   (cd "$WH" && RELEASE_WEBHOOK_SECRET=t sh scripts/webhook-test.sh --url "http://127.0.0.1:$PORTW" >/dev/null) && ok "webhook test passes against the demo receiver" || bad "webhook test failed against the demo receiver"
   OUTW=$(cd "$WH" && RELEASE_WEBHOOK_SECRET=wrong sh scripts/webhook-test.sh --url "http://127.0.0.1:$PORTW" --event yank 2>&1 || true)
   printf '%s' "$OUTW" | grep -q 'yank: signed (accepted) *401' && ok "webhook test catches a wrong secret" || bad "webhook test missed a wrong secret: $OUTW"
+  # a receiver that accepts anything must fail the test, with a warning
+  PORTL=$(python3 -I -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
+  python3 -I -c 'import http.server,sys
+class H(http.server.BaseHTTPRequestHandler):
+    def log_message(self,*a): pass
+    def do_POST(self): self.rfile.read(int(self.headers.get("Content-Length",0))); self.send_response(200); self.end_headers()
+http.server.HTTPServer(("127.0.0.1",int(sys.argv[1])),H).serve_forever()' "$PORTL" & LP=$!
+  sleep 0.5; OUTL=$(cd "$WH" && RELEASE_WEBHOOK_SECRET=t sh scripts/webhook-test.sh --url "http://127.0.0.1:$PORTL" --event release 2>&1); rcl=$?
+  [ $rcl != 0 ] && printf '%s' "$OUTL" | grep -q 'fake a release' && ok "webhook test flags a receiver that skips the signature check" || bad "lax receiver not flagged: $OUTL"
+  kill $LP 2>/dev/null; wait $LP 2>/dev/null
+  OUTD=$(cd "$WH" && RELEASE_WEBHOOK_SECRET=t sh scripts/webhook-test.sh --url "http://127.0.0.1:1" --event yank 2>&1 || true)
+  printf '%s' "$OUTD" | grep -q 'no answer' && ok "webhook test explains a receiver that isn't running" || bad "receiver down: $OUTD"
   kill $RP 2>/dev/null; wait $RP 2>/dev/null || true
 fi
 

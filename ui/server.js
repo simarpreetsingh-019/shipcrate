@@ -65,7 +65,7 @@ async function overview() {
 async function stats() {
   const r = await run("gh", ["api", `repos/${REPO}/releases?per_page=100`, "--paginate", "--jq",
     '.[] | . as $r | .assets[] | [$r.tag_name, ($r.prerelease|tostring), .name, (.download_count|tostring), $r.published_at] | @tsv'], 60000);
-  if (!r.ok) return { ok: false, error: (r.err || r.out).split("\n")[0] };
+  if (!r.ok) return { ok: false, error: (r.err || r.out).split("\n")[0] || "needs the GitHub CLI (gh), signed in: gh auth login" };
   const base = {};
   const bf = path.join(process.env.XDG_CONFIG_HOME || path.join(process.env.HOME || "", ".config"), "shipcrate/stats", REPO.replace("/", "-") + ".baseline.csv");
   if (fs.existsSync(bf)) for (const l of fs.readFileSync(bf, "utf8").split("\n")) { const [t, f, n] = l.split(","); if (t) base[t + "/" + f] = Number(n) || 0; }
@@ -77,25 +77,29 @@ async function stats() {
 // ---- actions: fixed list, checked arguments, no shell
 const VER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 const need = (ok, msg) => { if (!ok) throw new Error(msg); };
+// Free text goes to the scripts as an argument: it must not look like a flag (--clear, -y) or hold control characters.
+const textArg = (v, max, what) => { need(typeof v === "string" && v.trim() && v.length <= max, `${what}: 1-${max} characters`);
+  need(!/^\s*-/.test(v), `${what} can't start with "-"`); need(!/[\u0000-\u001f\u007f]/.test(v), `${what}: one line, no control characters`); return v.trim(); };
+const hasScript = n => need(fs.existsSync(path.join(DIR, "scripts", n)), `scripts/${n} is missing in this project: run shipcrate sync to add it`);
 const ACTIONS = {
-  check:     a => ["sh", ["scripts/check.sh", ...(a.quick ? ["--quick"] : [])]],
+  check:     a => hasScript("check.sh") || ["sh", ["scripts/check.sh", ...(a.quick ? ["--quick"] : [])]],
   doctor:    () => ["sh", [path.join(KIT, "bin/shipcrate"), "doctor"]],
-  changelog: () => ["sh", ["scripts/changelog.sh"]],
-  stats:     () => ["sh", ["scripts/stats.sh"]],
-  preview:   a => { need(VER.test(a.version || ""), "version must look like 1.2.3 or 1.2.3-beta.1"); return ["sh", ["scripts/release.sh", a.version, "--dry-run"]]; },
-  webhook:   a => { need(/^https:\/\/[^\s]+$|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/\S*)?$/.test(a.url || ""), "URL must be https (http only for localhost)");
+  changelog: () => hasScript("changelog.sh") || ["sh", ["scripts/changelog.sh"]],
+  stats:     () => hasScript("stats.sh") || ["sh", ["scripts/stats.sh"]],
+  preview:   a => { hasScript("release.sh"); need(VER.test(a.version || ""), "version must look like 1.2.3 or 1.2.3-beta.1"); return ["sh", ["scripts/release.sh", a.version, "--dry-run"]]; },
+  webhook:   a => { hasScript("webhook-test.sh"); need(!a.event || ["all", "release", "security", "announcement", "yank"].includes(a.event), "unknown event"); need(/^https:\/\/[^\s]+$|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/\S*)?$/.test(a.url || ""), "URL must be https (http only for localhost)");
                     return ["sh", ["scripts/webhook-test.sh", "--url", a.url, ...(a.event && a.event !== "all" ? ["--event", a.event] : [])]]; },
-  rollout:   a => { const p = Number(a.percent); need(Number.isInteger(p) && p >= 0 && p <= 100, "percent must be 0-100");
+  rollout:   a => { hasScript("rollout.sh"); const p = Number(a.percent); need(Number.isInteger(p) && p >= 0 && p <= 100, "percent must be 0-100");
                     const d = a.days ? Number(a.days) : 0; need(Number.isInteger(d) && d >= 0 && d <= 365, "days must be 0-365");
                     return ["sh", ["scripts/rollout.sh", String(p), ...(d ? ["--days", String(d)] : []), "--yes"]]; },
-  announce:  a => { if (a.clear) return ["sh", ["scripts/announce.sh", "--clear", "--yes"]];
-                    need(typeof a.message === "string" && a.message.trim() && a.message.length <= 300, "message: 1-300 characters");
+  announce:  a => { hasScript("announce.sh"); if (a.clear) return ["sh", ["scripts/announce.sh", "--clear", "--yes"]];
+                    const msg = textArg(a.message, 300, "message");
                     need(["info", "warning", "security"].includes(a.level || "info"), "level: info, warning or security");
                     need(!a.url || /^https:\/\/\S+$/.test(a.url), "link must be https"); need(!a.below || VER.test(a.below), "below must be a version");
-                    return ["sh", ["scripts/announce.sh", a.message.trim(), "--level", a.level || "info", ...(a.url ? ["--url", a.url] : []), ...(a.below ? ["--below", a.below] : []), "--yes"]]; },
-  yank:      a => { need(VER.test(a.version || ""), "version to yank must look like 1.2.3"); need(!a.to || VER.test(a.to), "--to must be a version");
-                    need(!a.reason || a.reason.length <= 200, "reason: up to 200 characters");
-                    return ["sh", ["scripts/yank.sh", a.version, ...(a.to ? ["--to", a.to] : []), ...(a.reason ? ["--reason", a.reason] : []), "--yes"]]; },
+                    return ["sh", ["scripts/announce.sh", msg, "--level", a.level || "info", ...(a.url ? ["--url", a.url] : []), ...(a.below ? ["--below", a.below] : []), "--yes"]]; },
+  yank:      a => { hasScript("yank.sh"); need(VER.test(a.version || ""), "version to yank must look like 1.2.3"); need(!a.to || VER.test(a.to), "--to must be a version");
+                    const reason = a.reason ? textArg(a.reason, 200, "reason") : "";
+                    return ["sh", ["scripts/yank.sh", a.version, ...(a.to ? ["--to", a.to] : []), ...(reason ? ["--reason", reason] : []), "--yes"]]; },
 };
 const PUBLISHES = new Set(["rollout", "announce", "yank"]);   // change what installed copies see: need confirm
 const shown = (cmd, args) => [cmd, ...args].filter(x => x !== "--yes").map(x => /^[\w./:=@%+-]+$/.test(x) ? x : `'${x.replace(/'/g, "'\\''")}'`).join(" ")
@@ -114,7 +118,9 @@ function start(name, a) {
 
 // ---- HTTP
 const PAGE = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
-function body(req) { return new Promise((res, rej) => { let b = ""; req.on("data", d => { b += d; if (b.length > 65536) { rej(new Error("too big")); req.destroy(); } }); req.on("end", () => res(b)); }); }
+function body(req) { return new Promise((res, rej) => { let b = "", big = false;
+  req.on("data", d => { if (big) return; b += d; if (b.length > 65536) { big = true; rej(Object.assign(new Error("request too big"), { code: 413 })); } });
+  req.on("end", () => big || res(b)); }); }
 const send = (res, code, obj) => res.writeHead(code, { "Content-Type": "application/json", "Cache-Control": "no-store" }).end(JSON.stringify(obj));
 
 const server = http.createServer(async (req, res) => {
@@ -135,7 +141,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname === "/api/job") return send(res, 200, job || {});
     if (req.method === "POST" && (u.pathname === "/api/plan" || u.pathname === "/api/run")) {
       if (!/^application\/json/.test(req.headers["content-type"] || "")) return send(res, 415, { error: "JSON only" });
-      const { action, args = {}, confirm } = json(await body(req)) || {};
+      const parsed = json(await body(req));
+      if (!parsed || typeof parsed !== "object") return send(res, 400, { error: "invalid JSON" });
+      const { action, args = {}, confirm } = parsed;
+      if (typeof args !== "object" || args === null || Array.isArray(args)) return send(res, 400, { error: "args must be an object" });
       if (!Object.prototype.hasOwnProperty.call(ACTIONS, action)) return send(res, 400, { error: "unknown action" });
       const [cmd, a] = ACTIONS[action](args);           // validates; throws with a readable message
       const command = shown(cmd, a), publishes = PUBLISHES.has(action);
@@ -145,9 +154,13 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, start(action, args));
     }
     send(res, 404, { error: "not found" });
-  } catch (e) { send(res, 400, { error: String(e.message || e) }); }
+  } catch (e) { send(res, e.code === 413 ? 413 : 400, { error: String(e.message || e) }); }
 });
 
+server.on("error", e => {
+  console.error(e.code === "EADDRINUSE" ? `✗ port ${PORT} is in use (another shipcrate ui?): try shipcrate ui --port ${PORT + 1}` : `✗ ${e.message}`);
+  process.exit(1);
+});
 server.listen(PORT, "127.0.0.1", () => {
   const url = `http://127.0.0.1:${server.address().port}/#t=${TOKEN}`;
   console.log(`shipcrate ui for ${C.PRODUCT || path.basename(DIR)} (${REPO})\n  ${url}\n  local only; Ctrl-C to stop`);

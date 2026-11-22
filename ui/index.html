@@ -166,7 +166,7 @@ async function load() {
       `<span class="chip ${O.gh ? "ok" : "bad"}">${O.gh ? "gh signed in" : "gh not signed in"}</span>`].join("");
     const g = O.git;
     $("cards").innerHTML = manifestCard("Stable (latest.json)", O.latest) + manifestCard("Beta channel (beta.json)", O.beta, true) +
-      card("This folder", `<div class="big">${esc(g.branch)}</div><div class="mut small">${esc(g.head)}</div>
+      card("This folder", `<div class="big">${esc(g.branch || "no git")}</div><div class="mut small">${esc(g.head)}</div>
         <div class="row small"><span class="chip">${g.since} commit(s) since ${esc(g.lastTag || "first release")}</span><span class="chip ${g.dirty ? "warn" : "ok"}">${g.dirty ? g.dirty + " uncommitted" : "clean"}</span></div>`) +
       card("Downloads", `<div class="big" id="dltotal">…</div><div class="mut small" id="dlsub">counting from GitHub</div>`);
     const rp = nowPct(O.latest); $("rp").value = rp; $("rpv").textContent = rp + "%";

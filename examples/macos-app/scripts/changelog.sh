@@ -8,6 +8,7 @@
 #   docs: chore: ci: test: style: build: → left out.  Anything else → Changed.
 set -eu
 cd "$(dirname "$0")/.."
+. scripts/lib.sh
 MODE="${1:-show}"
 LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)   # skips v1, channel, betas
 BASE="${LAST#v}"; [ -n "$BASE" ] || BASE=0.0.0
@@ -46,6 +47,9 @@ SECTION=$(printf '%s\n' "$OUT" | tail -n +2)
 MAJ=${BASE%%.*}; REST=${BASE#*.}; MIN=${REST%%.*}; PAT=${REST#*.}; PAT=${PAT%%[-+]*}
 if [ "$LEVEL" = 3 ] && [ "$MAJ" = 0 ]; then LEVEL=2; fi        # before 1.0, breaking changes bump the minor
 case "$LEVEL" in 3) NEXT="$((MAJ+1)).0.0" ;; 2) NEXT="$MAJ.$((MIN+1)).0" ;; *) NEXT="$MAJ.$MIN.$((PAT+1))" ;; esac
+# Betas already name the next version (1.10.0-beta.2 after 1.9.0): the stable release is that version, not 1.9.1.
+PRE=$(git tag -l 'v[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-' | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+)-.*/\1/' | sort -u -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
+if [ -n "$PRE" ] && ver_gt "$PRE" "$BASE" && ver_gt "$PRE" "$NEXT"; then NEXT="$PRE"; fi
 DATE=$(date -u +%Y-%m-%d)
 
 case "$MODE" in

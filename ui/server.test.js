@@ -39,5 +39,19 @@ test("ui server guards", async () => {
     }
     const hook = await req(port, "/api/plan", { method: "POST", headers: H, body: JSON.stringify({ action: "webhook", args: { url: "http://example.com" } }) });
     assert.strictEqual(hook.code, 400, "plain http outside localhost");
+    const planErr = async (action, args) => { const x = await req(port, "/api/plan", { method: "POST", headers: H, body: JSON.stringify({ action, args }) }); return [x.code, JSON.parse(x.body).error || ""]; };
+    // free text must never become a flag of the script (a message "--clear" would clear the live announcement)
+    for (const message of ["--clear", "-y", "  --yes"]) assert.deepStrictEqual((await planErr("announce", { message }))[0], 400, message);
+    assert.match((await planErr("announce", { message: "two\nlines" }))[1], /one line/);
+    assert.match((await planErr("yank", { version: "1.0.0", reason: "--to 0.0.1" }))[1], /can't start/);
+    assert.match((await planErr("announce", { message: "x".repeat(301) }))[1], /1-300/);
+    assert.match((await planErr("webhook", { url: "https://a.b", event: "evil" }))[1], /unknown event/);
+    assert.match((await planErr("check", "--release"))[1], /args must be an object/);
+    const ok = await req(port, "/api/plan", { method: "POST", headers: H, body: JSON.stringify({ action: "announce", args: { message: "Hi 👋 it's \"ok\"" } }) });
+    assert.strictEqual(ok.code, 200, "normal text with quotes and emoji is fine");
+    assert.match((await req(port, "/api/plan", { method: "POST", headers: H, body: "{nope" })).body, /invalid JSON/);
+    assert.strictEqual((await req(port, "/api/plan", { method: "POST", headers: H, body: "a".repeat(70000) })).code, 413);
+    fs.rmSync(path.join(dir, "scripts/yank.sh"));
+    assert.match((await planErr("yank", { version: "1.0.0" }))[1], /missing.*shipcrate sync/, "old projects without a script get a clear message");
   } finally { p.kill(); fs.rmSync(dir, { recursive: true, force: true }); }
 });

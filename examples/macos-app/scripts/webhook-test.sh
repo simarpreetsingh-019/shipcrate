@@ -69,14 +69,16 @@ case "$URL" in https://*) ;; http://localhost[:/]*|http://localhost|http://127.0
 SECRET="${RELEASE_WEBHOOK_SECRET:-}"
 [ -n "$SECRET" ] || echo "• RELEASE_WEBHOOK_SECRET isn't set: sending unsigned. Your receiver should refuse these; set the secret to test signing."
 B=$(mktemp); trap 'rm -f "$B"' EXIT
-FAIL=0
+FAIL=0; LAX=0
 send() { # send LABEL EXPECT(2|4) EVENT SIG
   set -- "$1" "$2" "$3" "$4"
-  if [ -n "$4" ]; then code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H "Content-Type: application/json" -H "User-Agent: shipcrate-release" -H "X-Shipcrate-Event: $3" -H "X-Shipcrate-Signature: sha256=$4" --data-binary @"$B" "$URL" 2>/dev/null || echo 000)
-  else code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H "Content-Type: application/json" -H "User-Agent: shipcrate-release" -H "X-Shipcrate-Event: $3" --data-binary @"$B" "$URL" 2>/dev/null || echo 000); fi
+  if [ -n "$4" ]; then code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H "Content-Type: application/json" -H "User-Agent: shipcrate-release" -H "X-Shipcrate-Event: $3" -H "X-Shipcrate-Signature: sha256=$4" --data-binary @"$B" "$URL" 2>/dev/null || true)
+  else code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H "Content-Type: application/json" -H "User-Agent: shipcrate-release" -H "X-Shipcrate-Event: $3" --data-binary @"$B" "$URL" 2>/dev/null || true); fi
+  code=$(printf '%s' "$code" | cut -c1-3); [ -n "$code" ] || code=000
   case "$code" in "$2"??) printf '  ✔ %-44s %s\n' "$1" "$code" ;;
     000) printf '  ✗ %-44s no answer (is the receiver running at %s?)\n' "$1" "$URL"; FAIL=$((FAIL+1)) ;;
-    *) printf '  ✗ %-44s %s (expected %sxx)\n' "$1" "$code" "$2"; FAIL=$((FAIL+1)) ;; esac
+    *) printf '  ✗ %-44s %s (expected %sxx)\n' "$1" "$code" "$2"; FAIL=$((FAIL+1))
+       case "$2$code" in 42??) LAX=1 ;; esac ;; esac
 }
 echo "→ Webhook test: $URL"
 for e in $EVENTS; do
@@ -88,4 +90,5 @@ for e in $EVENTS; do
     send "$e: unsigned (refused)" 4 "$he" ""
   else send "$e: unsigned" 2 "$he" ""; fi
 done
+[ $LAX = 1 ] && printf '\n  ⚠ Your receiver accepted a message with a wrong or missing signature: anyone who finds the URL could\n    fake a release or an announcement. Check X-Shipcrate-Signature (see examples/notify-receiver/server.js).\n'
 echo; [ $FAIL = 0 ] && echo "✓ your receiver handles every event shipcrate sends" || { echo "✗ $FAIL check(s) failed"; exit 1; }
