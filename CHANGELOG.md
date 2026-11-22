@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Fixed (important)
+- **The gate flagged every project's own `TOKEN` name as a credential** when the name had 8+ characters (e.g. `makereel`): the exclusion never matched `grep -n` output. Found on makereel.
+- **`shipcrate sync` could stop before finishing** (exit 1, version not recorded) when the last file it checked was edited. Found on msh.
+- **Projects set up before 0.5 kept old scripts silently:** with no record of what shipcrate wrote, sync treats every differing file as yours. It now says so and that older copies miss fixes (Thermo's `release.sh` would still refuse 1.10.0 after the beta).
+- **Python gate:** uses the project's `.venv` when there is one, and says "needs pytest" instead of a confusing unittest error; `.env.example` / `.env.sample` / `.env.template` are no longer blocked.
+- **Update-path test for CLIs that ask first:** retries `upgrade -y` / `--yes` when there's no terminal (msh).
 - **Pre-release ordering in all 4 updaters:** `1.10.0-beta.2` was treated as equal to `1.10.0-beta.1`, so beta testers couldn't get the next beta. In Swift, `1.10.0` was also equal to `1.10.0-beta.1`, so beta testers never got the final release. Updaters now use semantic-versioning order (beta.1 < beta.2 < beta.10 < rc.1 < release). Found by the new update-path test on Thermo.
 - `release.sh` refused `1.10.0` after `1.10.0-beta.1` ("isn't newer"). Versions are now compared with `ver_gt` in `lib.sh`.
 

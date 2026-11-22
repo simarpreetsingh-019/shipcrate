@@ -137,6 +137,11 @@ sync_project() {
       else say "  ✎ $f has your own edits ($n lines differ from the new version)"; echo "$f" >> "$W/edited"; fi
     fi
   done
+  if [ ! -f "$REC" ] && [ -s "$W/edited" ]; then
+    say "  Note: this project was set up before shipcrate 0.5, so there's no record of what shipcrate wrote. Files"
+    say "  marked ✎ may just be an older shipcrate version, not your edits. Run sync without --yes to see each diff"
+    say "  and choose (older versions miss fixes, e.g. beta → stable version order in lib.sh and release.sh)."
+  fi
   changed=$(($(wc -l < "$W/apply") + $(wc -l < "$W/edited")))
   copies=$(grep -rls 'shipcrate:public-key' --include='*.rs' --include='*.py' --include='*.js' --include='*.ts' --include='*.swift' . 2>/dev/null | grep -v -E '^\./updater/|node_modules' || true)
   for c in $copies; do say "  ! $c is your copy of the updater: update it from updater/ yourself (diff it; your changes are kept)"; done
@@ -158,7 +163,7 @@ sync_project() {
   # remember what's now in place (edited files keep their current checksum, so they stay "yours")
   mkdir -p .shipcrate
   (cd "$W/new" && find scripts tests/shipcrate .githooks updater -type f 2>/dev/null | sort) | while IFS= read -r f; do
-    [ -f "$f" ] && cmp -s "$W/new/$f" "$f" && printf '%s  %s\n' "$(sha "$f")" "$f"
+    if [ -f "$f" ] && cmp -s "$W/new/$f" "$f"; then printf '%s  %s\n' "$(sha "$f")" "$f"; fi
   done > "$REC"
   # keep signed updates on: put this project's public key back into the fresh updater files
   if [ -n "${PUBLIC_KEY:-}" ]; then for f in updater/*; do [ -f "$f" ] && sed -E "/shipcrate:public-key/s|\"[A-Za-z0-9+/=]*\"|\"$PUBLIC_KEY\"|" "$f" > "$f.new" && mv "$f.new" "$f"; done; fi

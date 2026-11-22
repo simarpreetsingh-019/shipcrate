@@ -25,6 +25,7 @@ scan_secrets() {
 scan_big() {
   files | while IFS= read -r f; do
     [ -f "$f" ] || continue
+    case "$f" in .env.example|.env.sample|.env.template|*/.env.example|*/.env.sample|*/.env.template) continue;; esac
     case "$f" in *.gguf|*.safetensors|*.pt|*.pth|*.ckpt|*.onnx|*.mlmodel|.env|.env.*|*.p12|*.pfx|*.pem|*.key|*.keystore|*.mobileprovision|id_rsa*|id_ed25519*) echo "blocked file type: $f";; esac
     s=$(wc -c < "$f" | tr -d ' '); [ "$s" -gt 5242880 ] && echo "over 5 MB: $f ($((s / 1048576)) MB). Videos: ffmpeg -i in.mp4 -crf 24 out.mp4; or attach big files to a GitHub release instead"
   done | { OUT=$(cat); [ -z "$OUT" ] || { printf '%s\n' "$OUT"; exit 1; }; }
@@ -42,7 +43,7 @@ lint_workflows() {
   done | { OUT=$(cat); [ -z "$OUT" ] || { echo "$OUT"; exit 1; }; }
 }
 # release.conf is committed: it must never hold a credential.
-lint_conf() { ! grep -nE '(TOKEN|SECRET|PASSWORD|API_KEY|WEBHOOK_URL)=["'"'"']?[^"'"'"' ]{8,}' release.conf | grep -v '^TOKEN=' ; }
+lint_conf() { ! grep -nE '(TOKEN|SECRET|PASSWORD|API_KEY|WEBHOOK_URL)=["'"'"']?[^"'"'"' ]{8,}' release.conf | grep -v '^[0-9]*:TOKEN=' ; }
 
 echo "$PRODUCT check ($MODE)"
 case "$KIT_LANG" in
@@ -56,9 +57,11 @@ case "$KIT_LANG" in
     elif [ -f tests/shipcrate/run.sh ]; then printf "• %-46s– no SwiftPM tests; shipcrate's tests run below\n" "tests"
     else skip "tests" "no SwiftPM Tests/ folder"; fi ;;
   python)
-    step "byte-compile"              python3 -m compileall -q -x '/\.venv/' .
-    if [ -d tests ] && python3 -c 'import pytest' 2>/dev/null; then step "tests (pytest)" python3 -m pytest -q
-    elif [ -d tests ]; then step "tests (unittest)" python3 -m unittest discover -q -s tests
+    PY=python3; [ -x .venv/bin/python ] && PY=.venv/bin/python     # the project's own virtualenv, if it has one
+    step "byte-compile"              $PY -m compileall -q -x '/\.venv/' .
+    if [ -d tests ] && $PY -c 'import pytest' 2>/dev/null; then step "tests (pytest)" $PY -m pytest -q
+    elif [ -d tests ] && grep -rqsE '^(import|from) pytest' tests; then step "tests (need pytest: $PY -m pip install pytest)" false
+    elif [ -d tests ]; then step "tests (unittest)" $PY -m unittest discover -q -s tests
     else skip "tests" "no tests/ folder"; fi ;;
   node)
     [ -d node_modules ] || [ ! -f package-lock.json ] || step "install dependencies" npm ci --silent

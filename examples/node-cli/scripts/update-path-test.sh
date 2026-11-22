@@ -46,8 +46,11 @@ MANIFEST="http://127.0.0.1:$PORT/latest.json"
 if [ "$TYPE" = cli ]; then
   mkdir -p "$W/bin" && tar -xzf "$W/old/$A" -C "$W/old" 2>/dev/null || (cd "$W/old" && unzip -q "$A")
   cp "$W/old/$BINARY" "$W/bin/$BINARY" && chmod 755 "$W/bin/$BINARY"
-  env "${ENVP}_UPDATE_MANIFEST=$MANIFEST" XDG_CACHE_HOME="$W/cache" "$W/bin/$BINARY" upgrade || die "the old copy's upgrade failed"
-  OUT=$("$W/bin/$BINARY" --version 2>&1 || true)
+  # Plain `upgrade` first; CLIs that ask before upgrading (no terminal here) get -y, then --yes.
+  for args in "" "-y" "--yes"; do
+    env "${ENVP}_UPDATE_MANIFEST=$MANIFEST" XDG_CACHE_HOME="$W/cache" "$W/bin/$BINARY" upgrade $args </dev/null || true
+    OUT=$("$W/bin/$BINARY" --version 2>&1 || true); printf '%s' "$OUT" | grep -q "$NEW" && break
+  done
   printf '%s' "$OUT" | grep -q "$NEW" || die "after upgrading, the binary says: $OUT (expected $NEW). Old copies without shipcrate's updater can't use a local manifest: try --from <a newer tag>"
 else
   ditto -x -k "$W/old/$A" "$W/old/x" && APP=$(find "$W/old/x" -maxdepth 1 -name '*.app' | head -1)
