@@ -14,8 +14,8 @@ Ideas from GoReleaser, dist (cargo-dist), Sparkle, Velopack, the Tauri updater a
       with `shipcrate release | check | rollout | yank | announce | status | doctor`, released with shipcrate itself.
 - [x] **Timed phased rollout** (Sparkle spreads an update over 7 days): `--rollout-days 7` grows the percentage
       on the client from the publish date, with no follow-up commands.
-- [ ] **Minimum version / critical update** (Sparkle has critical updates): `--min-version X` makes older copies
-      show a must-update notice.
+- [x] **Minimum version / critical update** (Sparkle has critical updates): `shipcrate min-version X` (or
+      `release.sh --min-version X`) makes older copies show a must-update notice at every check, ignoring rollout.
 - [x] **Automatic versions and changelog** (release-please, changesets): suggest the next version and write
       the CHANGELOG section from conventional commits.
 - [x] **SBOM and Sigstore/cosign signing** (GoReleaser): an SBOM per release (syft) and keyless signatures next to the provenance.
@@ -33,7 +33,7 @@ Ideas from GoReleaser, dist (cargo-dist), Sparkle, Velopack, the Tauri updater a
       from config, and fail CI when they drift, instead of "your edits" merges in sync.
 - [ ] **Updater as a package** (axoupdater): publish the std-only Rust updater as a crate (and the Python/Node
       ones on PyPI/npm), so projects get fixes through their package manager with no file to copy.
-- [ ] **`shipcrate plan`** (`dist plan`): one dry run of the whole release (files per platform, installers,
+- [x] **`shipcrate plan`** (`dist plan`): one dry run of the whole release (files per platform, installers,
       manifest, tap) without building.
 - [ ] **Say when dist is the better fit:** for a Rust CLI that only needs builds, installers and Homebrew, dist is
       the mainstream choice. Lead the docs with what shipcrate adds: signed manifests, staged and timed rollout,

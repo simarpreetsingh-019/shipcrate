@@ -2,7 +2,8 @@
 // Checks the release manifest (latest.json) at most once a day with one anonymous GET (no telemetry, nothing about the user is sent),
 // shows an orange Update button (or calls your `onUpdateAvailable`), and on request downloads HelloShip.zip, verifies its
 // SHA-256 against the manifest, checks the bundle ID and code signature, swaps the app in place and relaunches.
-// Releases whose notes contain "[security]" (scripts/release.sh --security) get a stronger, red notice.
+// Releases whose notes contain "[security]" (scripts/release.sh --security) get a stronger, red notice, and so do
+// copies older than the publisher's minimum version ("min_version", scripts/min-version.sh): an update is required.
 // Opt out: `defaults write com.example.helloship autoUpdateCheck -bool false` or the HELLOSHIP_NO_UPDATE_CHECK env var.
 //
 // Add this file to your app target (it starts in updater/). API: Updater.shared.check(userInitiated:),
@@ -27,6 +28,9 @@ struct Release {
     var isSecurity: Bool { security }
     /// The running version was pulled by the publisher (scripts/yank.sh); this release moves back to a good one.
     var replacesYanked = false
+    /// The running version is below the publisher's minimum ("min_version"): this update is required.
+    var required = false
+    var minVersion = ""
 }
 
 /// A one-off message from the publisher (scripts/announce.sh). Display-only; the app never acts on it.
@@ -233,11 +237,15 @@ final class Updater: ObservableObject {
         let rollout = effectiveRollout(j, now: now)
         let notes = j["notes"] as? String ?? ""
         let security = (j["security"] as? Bool ?? false) || notes.range(of: "[security]", options: .caseInsensitive) != nil
-        // Pulled version → always offer the way back; security → always; otherwise newer and inside the rollout.
-        guard yanked || (isNewer(v, than: current) && (security || bucket < rollout)) else { return nil }
+        let minV = Announcement.clean(j["min_version"], 32).replacingOccurrences(of: "^v", with: "", options: .regularExpression)
+        let required = !minV.isEmpty && isNewer(minV, than: current) && isNewer(v, than: current)
+        // Pulled version → always offer the way back; required or security → always; otherwise newer and inside the rollout.
+        guard yanked || (isNewer(v, than: current) && (security || required || bucket < rollout)) else { return nil }
         let page = (j["page"] as? String).flatMap(URL.init(string:)) ?? URL(string: "https://github.com/\(repo)/releases")!
         var r = Release(version: v, notes: notes, zipURL: z, sha256: sha, pageURL: page, security: security)
         r.replacesYanked = yanked
+        r.required = required
+        r.minVersion = minV
         return r
     }
 
@@ -246,8 +254,9 @@ final class Updater: ObservableObject {
         guard let r = available else { return }
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.alertStyle = r.isSecurity ? .critical : .informational
+        alert.alertStyle = r.isSecurity || r.required ? .critical : .informational
         alert.messageText = r.replacesYanked ? "HelloShip \(current) was pulled: please switch to \(r.version)"
+            : r.required ? "Update required: HelloShip \(current) is no longer supported (minimum \(r.minVersion))"
             : r.isSecurity ? "Security update: HelloShip \(r.version)" : "HelloShip \(r.version) is available"
         let notes = r.notes.count > 600 ? String(r.notes.prefix(600)) + "…" : r.notes
         alert.informativeText = "You have \(current).\n\n\(notes)"
@@ -346,10 +355,10 @@ struct UpdateButton: View {
     var body: some View {
         if let r = updater.available {
             Button(action: { updater.promptInstall() }) {
-                Label(r.replacesYanked ? "Switch version" : r.isSecurity ? "Security update" : "Update", systemImage: r.isSecurity ? "exclamationmark.shield.fill" : "arrow.down.circle.fill")
+                Label(r.replacesYanked ? "Switch version" : r.required ? "Update required" : r.isSecurity ? "Security update" : "Update", systemImage: r.isSecurity ? "exclamationmark.shield.fill" : "arrow.down.circle.fill")
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Capsule().fill(r.isSecurity || r.replacesYanked ? Color.red : Color.orange))
+                    .background(Capsule().fill(r.isSecurity || r.replacesYanked || r.required ? Color.red : Color.orange))
                     .foregroundColor(.white)
             }
             .buttonStyle(.plain)

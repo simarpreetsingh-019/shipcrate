@@ -125,8 +125,8 @@ dialog code{display:block;background:var(--code);color:var(--codefg);padding:10p
   <div class="actions">
     <div class="card act"><h3>Quality gate</h3><span class="mut small">The same checks as your git hooks and CI.</span>
       <div class="row"><button data-run="check" data-args='{"quick":true}'>Quick check</button><button data-run="check">Full check</button><button data-run="doctor">Doctor</button></div></div>
-    <div class="card act"><h3>Next release</h3><span class="mut small">Suggested version and notes from your commits, then a full dry run.</span>
-      <div class="row"><button id="suggest">Suggest changelog</button><input id="pv" placeholder="1.2.3 or 1.2.3-beta.1" size="16"><button id="preview">Preview release</button></div>
+    <div class="card act"><h3>Next release</h3><span class="mut small">Suggested version and notes from your commits, a plan in seconds (no build), then a full dry run.</span>
+      <div class="row"><button id="suggest">Suggest changelog</button><input id="pv" placeholder="1.2.3 or 1.2.3-beta.1" size="16"><button id="plan">Plan</button><button id="preview">Preview release</button></div>
       <span class="mut small">Publishing stays in the terminal: <code>sh scripts/release.sh X.Y.Z</code></span></div>
     <div class="card act"><h3>Webhook</h3><span class="mut small">Send signed sample events to your receiver (RELEASE_WEBHOOK_SECRET from the environment that started ui).</span>
       <div class="row"><input id="wu" placeholder="https://… or http://localhost:8787" style="flex:1"><select id="we"><option>all</option><option>release</option><option>security</option><option>announcement</option><option>yank</option></select><button id="webhook">Test</button></div></div>
@@ -146,6 +146,10 @@ dialog code{display:block;background:var(--code);color:var(--codefg);padding:10p
       <div class="row"><select id="al"><option>info</option><option>warning</option><option>security</option></select><input id="au" placeholder="https:// link (optional)" style="flex:1"><input id="ab" placeholder="below version" size="11"></div>
       <div class="preview"><span class="mut small">How it looks · in the terminal</span><div class="term" id="apcli"></div><span class="mut small">· in the app</span><div class="app"><span id="apicon">ℹ️</span><div><b id="aptitle"></b><span id="apmsg"></span></div></div></div>
       <div class="row"><span class="sp"></span><button id="aclear" class="danger">Clear current…</button><button id="announce" class="pri">Send…</button></div></div>
+    <div class="card act danger-zone"><h3>Required update</h3><span class="mut small">Copies older than this version must update: a red "update required" notice at every check, ignoring the rollout. For a security fix or an API change old copies can't handle.</span>
+      <div class="small" id="mvnow"></div>
+      <div class="row"><input id="mv" placeholder="minimum version, e.g. 1.4.0" style="flex:1"><button id="mvclear">Clear</button><button id="minversion" class="danger pri">Require…</button></div>
+      <div class="preview"><div class="term" id="mvprev"></div></div></div>
     <div class="card act danger-zone"><h3>Yank a release</h3><span class="mut small">Pull a bad version and send its users back to a good one.</span>
       <div class="row"><select id="yv"></select><span class="mut">→</span><input id="yt" placeholder="back to (default: previous)" style="flex:1"></div>
       <input id="yr" maxlength="200" placeholder="reason (shown to users)">
@@ -241,6 +245,7 @@ function manifestCard(title, m, beta) {
   const pct = pctAt(m, Date.now());
   let h = `<div class="big">${esc(m.version)}</div><div class="mut small">${esc(m.tag)} · ${ago(m.published)}${m.security ? ' · <b style="color:var(--bad)">security</b>' : ""}</div>`;
   if (!beta) h += `<div class="meter"><i style="width:${pct}%"></i></div><div class="small">${pct}% of copies are offered it${m.rollout_days ? ` · growing to 100% over ${esc(m.rollout_days)} days` : ""}</div>`;
+  if (m.min_version) h += `<div class="note security">Required update: copies before ${esc(m.min_version)} must update</div>`;
   if (m.yanked && m.yanked.length) h += `<div class="note warning">Yanked: ${m.yanked.map(esc).join(", ")}</div>`;
   if (m.announcement) h += `<div class="note ${esc(m.announcement.level)}">📣 ${esc(m.announcement.message)}${m.announcement.below ? ` <span class="mut">(below ${esc(m.announcement.below)})</span>` : ""}</div>`;
   h += `<div class="row small mut">${Object.keys(m.assets || {}).map(p => `<span class="chip">${esc(p)}</span>`).join("")}</div>`;
@@ -268,7 +273,7 @@ async function load() {
     for (const id of ["rollout", "announce", "aclear"]) { $(id).dataset.off = O.latest ? "" : "1"; $(id).disabled = !O.latest; }
     $("rp").value = O.latest ? startPct(O.latest) : 100; $("rd").value = O.latest && O.latest.rollout_days ? Math.min(30, O.latest.rollout_days) : 0;
     $("updated").textContent = "updated " + new Date().toLocaleTimeString();
-    rolloutPreview(); annPreview(); yankSteps();
+    rolloutPreview(); annPreview(); yankSteps(); mvPreview();
     loadStats(); loadHistory();
   } catch (e) { $("cards").innerHTML = `<div class="card"><b style="color:var(--bad)">Couldn't load:</b> ${esc(e.message)}</div>`; }
   $("refresh").disabled = false;
@@ -369,7 +374,7 @@ async function run(action, args = {}, confirm) {
       pre.textContent = s.out || "…"; if (atEnd) pre.scrollTop = pre.scrollHeight;
       if (s.done) { clearInterval(polling); $("cdot").className = "dot " + (s.code === 0 ? "ok" : "bad");
         $("ctitle").textContent = `${s.code === 0 ? "✓" : "✗ exit " + s.code} · $ ${s.command}`; lockButtons(false);
-        if (["rollout", "announce", "yank", "baseline", "sync"].includes(s.name)) setTimeout(() => { load(); loadSettings(); }, 1200); }
+        if (["rollout", "announce", "minversion", "yank", "baseline", "sync"].includes(s.name)) setTimeout(() => { load(); loadSettings(); }, 1200); }
     }, 700);
   } catch (e) { say(false, "Couldn't start", e.message); }
 }
@@ -383,6 +388,7 @@ $("dno").onclick = () => $("dlg").close();
 document.querySelectorAll("[data-run]").forEach(b => b.onclick = () => run(b.dataset.run, b.dataset.args ? JSON.parse(b.dataset.args) : {}));
 $("suggest").onclick = () => run("changelog");
 $("preview").onclick = () => run("preview", { version: $("pv").value.trim() });
+$("plan").onclick = () => run("plan", { version: $("pv").value.trim() || "auto" });
 $("webhook").onclick = () => run("webhook", { url: $("wu").value.trim(), event: $("we").value });
 
 function rolloutPreview() {
@@ -406,6 +412,16 @@ function annPreview() {
 for (const id of ["am", "al", "au", "ab"]) $(id).oninput = annPreview;
 $("announce").onclick = () => ask("announce", { message: $("am").value, level: $("al").value, url: $("au").value.trim(), below: $("ab").value.trim() }, "Every installed copy shows this message once at its next daily check, and your webhook is called.");
 $("aclear").onclick = () => ask("announce", { clear: true }, "Remove the current announcement from latest.json.");
+function mvPreview() {
+  const cur = O && O.latest && O.latest.min_version, live = O && O.latest && O.latest.version, v = $("mv").value.trim().replace(/^v/, "");
+  $("mvnow").innerHTML = cur ? `Now: copies before <b>${esc(cur)}</b> must update.` : "Now: no minimum version.";
+  const bin = (SET && SET.readonly.BINARY) || ((O && O.product) || "app").toLowerCase();
+  $("mvprev").textContent = v ? `⚠️  UPDATE REQUIRED: ${bin} 1.0.0 is no longer supported (minimum ${v}). Run \`${bin} upgrade\` to get ${live || "the latest"}` : "";
+  $("minversion").disabled = !v; $("mvclear").disabled = !cur;
+}
+$("mv").oninput = mvPreview;
+$("minversion").onclick = () => ask("minversion", { version: $("mv").value.trim().replace(/^v/, "") }, `Copies older than ${$("mv").value.trim()} are told an update is required, at every check. Saved as MIN_VERSION in release.conf so later releases keep it.`);
+$("mvclear").onclick = () => ask("minversion", { clear: true }, "Remove the minimum version: copies go back to normal update notices.");
 function yankSteps() {
   const v = $("yv").value || "X", to = $("yt").value.trim() || "the release before it";
   $("ysteps").innerHTML = [`v${esc(v)} gets “[YANKED]” in its title and a warning in its notes; nothing is deleted`, `${esc(to)} becomes “latest” again, and its latest.json lists ${esc(v)} as yanked`,

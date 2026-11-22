@@ -130,6 +130,25 @@ The message goes into the newest release's `latest.json`, after you confirm. Eve
 characters, keep only `https` links, and never download or run anything because of a message. A new release clears
 the current announcement.
 
+## Require an update (minimum version)
+
+```sh
+sh scripts/min-version.sh 1.4.0     # copies older than 1.4.0 must update (asks first)
+sh scripts/min-version.sh --show    # what release.conf and the live release say
+sh scripts/min-version.sh --clear
+sh scripts/release.sh 1.5.0 --min-version 1.4.0   # or set it with a release
+```
+
+For a security fix or a server/API change that old copies can't work with. Copies below the minimum:
+
+- get `⚠️ UPDATE REQUIRED: app 1.3.2 is no longer supported (minimum 1.4.0)` at **every** check (CLIs), or a red
+  "Update required" button and a critical alert (Swift apps);
+- are offered the update whatever the staged or timed rollout says.
+
+It's saved as `MIN_VERSION` in `release.conf` (commit it) so every later release keeps it, and written into the live
+`latest.json` and the beta channel right away. The minimum can't be newer than the live release. For one bad release,
+`yank.sh` is the better tool: it moves its copies back to a good version.
+
 ## Beta first, then everyone
 
 **Beta channel.** Release a pre-release version: `sh scripts/release.sh 1.4.0-beta.1`. It's published as a GitHub
@@ -235,6 +254,7 @@ Nothing is deleted: the 1.4.0 files stay downloadable, and the git tag stays whe
   "announcement": { "id": "20261120T090000Z", "level": "info", "message": "…", "url": "https://…", "below": "" },
   "rollout": 25,
   "yanked": ["0.2.9"],
+  "min_version": "0.2.0",
   "assets": {
     "macos-arm64": { "name": "msh-macos-arm64.tar.gz", "url": "https://github.com/…", "sha256": "…" },
     "linux-x64":   { "name": "msh-linux-x64.tar.gz",   "url": "https://github.com/…", "sha256": "…" }

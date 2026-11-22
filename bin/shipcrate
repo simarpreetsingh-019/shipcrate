@@ -15,6 +15,8 @@
 #   shipcrate release <X.Y.Z|auto> [--dry-run] [--security] [--rollout N] [--rollout-days D] [--yes]
 #   shipcrate rollout <percent> [--days D]     widen (or time) a staged rollout
 #   shipcrate yank <X.Y.Z> [--to GOOD] [--reason "…"]   pull a bad release; users are moved back
+#   shipcrate plan [X.Y.Z]             what a release would do, in seconds, without building (default: suggested version)
+#   shipcrate min-version X.Y.Z | --clear | --show     copies older than X.Y.Z must update (required update)
 #   shipcrate announce "message" [--level …] [--url …] [--below X.Y.Z] | --clear
 #   shipcrate status                           settings + what's live (version, rollout, yanked, message)
 #   shipcrate stats [--baseline] [--history F] [--repo owner/name]   download numbers from GitHub (no tracking)
@@ -196,6 +198,7 @@ status() {
     /"rollout":/ { gsub(/[",]/, ""); print "rollout: " $2 "%" }
     /"rollout_days":/ { gsub(/[",]/, ""); print "timed rollout: " $2 " days" }
     /"security": true/ { print "security release: yes" }
+    /"min_version":/ { gsub(/[",]/, ""); print "required update: copies before " $2 " must update" }
     /"yanked":/ { sub(/^[^[]*/, ""); print "yanked: " $0 }
     /"announcement":/ { m = $0; sub(/.*"message": "/, "", m); sub(/", "url".*/, "", m); print "announcement: " m }
     /^    "[a-z0-9-]+": \{/ { t = $1; gsub(/[":]/, "", t); plats = plats " " t }
@@ -211,6 +214,8 @@ case "$cmd" in
   rollout) script rollout "$@" ;;
   yank) script yank "$@" ;;
   announce) script announce "$@" ;;
+  min-version) script min-version "$@" ;;
+  plan) case "${1:-}" in ""|-*) set -- auto "$@" ;; esac; script release "$@" --plan ;;
   keygen) script keygen "$@" ;;
   webhook) [ "${1:-}" = test ] && shift; script webhook-test "$@" ;;
   stats) if [ "${1:-}" = --repo ]; then R="${2:?--repo owner/name}"; shift 2; SHIPCRATE_REPO="$R" exec sh "$T/common/scripts/stats.sh" "$@"; fi

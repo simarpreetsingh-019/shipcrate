@@ -19,7 +19,7 @@
 //!   `hello-ship upgrade [--rollback]`:  update::upgrade(env!("CARGO_PKG_VERSION"), rollback)
 //! Announcements (scripts/announce.sh) print once per message, inside `notify`; or read them with `announcement()`.
 //! Beta channel: `HELLO_SHIP_CHANNEL=beta` reads the beta manifest (pre-releases plus every stable release).
-//! Staged rollouts (`"rollout": N`, or growing over `"rollout_days"`) and pulled versions (`"yanked"`) are handled for you.
+//! Staged rollouts (`"rollout": N`, or growing over `"rollout_days"`) pulled versions (`"yanked"`) and required updates (`"min_version"`) are handled for you.
 //! A mirror or your own update server: set `HELLO_SHIP_UPDATE_MANIFEST=https://…/latest.json` (same format).
 
 use std::collections::BTreeMap;
@@ -68,6 +68,8 @@ pub struct Latest {
     pub announcement: Option<Announcement>,
     /// Versions the publisher pulled (scripts/yank.sh). Copies on one of these are moved to `version`.
     pub yanked: Vec<String>,
+    /// Copies older than this must update (scripts/min-version.sh); empty = no minimum.
+    pub min_version: String,
     /// Staged rollout percent (scripts/rollout.sh); 100 = everyone. With `rollout_days`, the starting percent.
     pub rollout: u8,
     /// Timed rollout: grow from `rollout` to 100% over this many days after `published` (0 = off).
@@ -80,12 +82,16 @@ impl Latest {
     pub fn is_yanked(&self, current: &str) -> bool {
         self.yanked.iter().any(|y| y.trim_start_matches('v') == current.trim_start_matches('v'))
     }
-    /// Should this copy be told about the release? Yanked → always; security → always; else by rollout bucket.
+    /// Below the publisher's minimum version: this copy must update.
+    pub fn is_required(&self, current: &str) -> bool {
+        !self.min_version.is_empty() && is_newer(&self.min_version, current) && is_newer(&self.version, current)
+    }
+    /// Should this copy be told about the release? Yanked → always; required or security → always; else by rollout bucket.
     pub fn offered_to(&self, current: &str, bucket: u8) -> bool {
         if self.is_yanked(current) {
             return self.version != current.trim_start_matches('v');
         }
-        is_newer(&self.version, current) && (self.security || bucket < self.effective_rollout(now()))
+        is_newer(&self.version, current) && (self.security || self.is_required(current) || bucket < self.effective_rollout(now()))
     }
     /// The rollout percent right now: fixed, or growing linearly to 100% over `rollout_days`.
     pub fn effective_rollout(&self, at: u64) -> u8 {
@@ -650,8 +656,10 @@ pub fn parse_manifest(body: &str, key: &str, p: &Policy) -> Option<Latest> {
     let rollout_days = match j.get("rollout_days") { Some(Json::Num(n)) if *n > 0.0 => n.min(365.0) as u32, _ => 0 };
     let rollout = match j.get("rollout") { Some(Json::Num(n)) => n.clamp(0.0, 100.0) as u8, _ if rollout_days > 0 => 0, _ => 100 };
     let published = j.get("published").and_then(Json::str).and_then(parse_utc).unwrap_or(0);
+    let min_version = j.get("min_version").and_then(Json::str).map(|s| clean(s, 32).trim_start_matches('v').to_string()).unwrap_or_default();
     Some(Latest {
         yanked,
+        min_version,
         rollout,
         rollout_days,
         published,
@@ -678,7 +686,7 @@ fn cache_file() -> Option<PathBuf> {
 
 fn to_cache(l: &Latest) -> String {
     let a = l.announcement.clone().unwrap_or(Announcement { id: String::new(), level: String::new(), message: String::new(), url: String::new(), below: String::new() });
-    format!("{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n", now(), l.version, l.page, l.security as u8, a.id, a.level, a.url, a.below, a.message, l.rollout, l.yanked.join(","), l.rollout_days, l.published)
+    format!("{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n", now(), l.version, l.page, l.security as u8, a.id, a.level, a.url, a.below, a.message, l.rollout, l.yanked.join(","), l.rollout_days, l.published, l.min_version)
 }
 
 fn from_cache(text: &str) -> Option<(u64, Option<Latest>)> {
@@ -690,7 +698,7 @@ fn from_cache(text: &str) -> Option<(u64, Option<Latest>)> {
     let g = |i: usize| v.get(i).copied().unwrap_or("").to_string();
     let announcement = (!g(4).is_empty()).then(|| Announcement { id: g(4), level: g(5), url: g(6), below: g(7), message: g(8) });
     let yanked = g(10).split(',').filter(|s| !s.is_empty()).map(String::from).collect();
-    Some((stamp, Some(Latest { version: g(1), page: g(2), notes: String::new(), security: g(3) == "1", asset: None, announcement, rollout: g(9).parse().unwrap_or(100), yanked, rollout_days: g(11).parse().unwrap_or(0), published: g(12).parse().unwrap_or(0) })))
+    Some((stamp, Some(Latest { version: g(1), page: g(2), notes: String::new(), security: g(3) == "1", asset: None, announcement, rollout: g(9).parse().unwrap_or(100), yanked, min_version: g(13), rollout_days: g(11).parse().unwrap_or(0), published: g(12).parse().unwrap_or(0) })))
 }
 
 /// The manifest, fetched at most once a day (cached on disk). None when checks aren't allowed.
@@ -764,6 +772,8 @@ pub fn notice_line(l: &Latest, current: &str) -> String {
     let how = if is_homebrew() { format!("brew upgrade {BINARY}") } else { format!("{BINARY} upgrade") };
     if l.is_yanked(current) {
         format!("⚠️  {BINARY} {current} was pulled by its publisher. Run `{how}` to move to {} · {}", l.version, l.page)
+    } else if l.is_required(current) {
+        format!("⚠️  UPDATE REQUIRED: {BINARY} {current} is no longer supported (minimum {}). Run `{how}` to get {} · {}", l.min_version, l.version, l.page)
     } else if l.security {
         format!("⚠️  SECURITY UPDATE: {BINARY} {} fixes a security issue (you have {current}). Run `{how}` · {}", l.version, l.page)
     } else {
@@ -943,6 +953,11 @@ mod tests {
         let back = from_cache(&to_cache(&l)).unwrap().1.unwrap();
         assert_eq!((back.rollout, back.yanked.clone()), (25, vec!["1.3.0".to_string()]));
         assert!(notice_line(&l, "1.3.0").contains("pulled"));
+        let req = parse_manifest(r#"{"version":"2.0.0","rollout":0,"min_version":"v1.5.0"}"#, "k", &p).unwrap();
+        assert!(req.offered_to("1.4.9", 99) && !req.offered_to("1.5.0", 99)); // below the minimum ignores rollout
+        assert!(req.is_required("1.4.9") && !req.is_required("1.5.0") && !req.is_required("2.0.0"));
+        assert!(notice_line(&req, "1.4.9").contains("UPDATE REQUIRED"));
+        assert_eq!(from_cache(&to_cache(&req)).unwrap().1.unwrap().min_version, "1.5.0");
     }
 
     #[test]

@@ -12,7 +12,7 @@
 //       console.log(await update.upgrade(version, rollback));  // `hello-node upgrade [--rollback]`
 // Announcements (scripts/announce.sh) print once per message inside notify(); or read them with announcement().
 // Beta channel: HELLO_NODE_CHANNEL=beta reads the beta manifest (pre-releases plus every stable release).
-// Staged rollouts ("rollout": N) and pulled versions ("yanked") are handled for you.
+// Staged rollouts ("rollout": N), pulled versions ("yanked") and required updates ("min_version") are handled for you.
 // A mirror or your own update server: HELLO_NODE_UPDATE_MANIFEST=https://…/latest.json (same format).
 "use strict";
 const fs = require("node:fs");
@@ -137,6 +137,7 @@ function parseManifest(body, key, p) {
   const notes = j.notes || "";
   return { version: String(j.version).replace(/^v/, ""), page: j.page || `https://github.com/${REPO}/releases`, notes,
     security: j.security === true || notes.toLowerCase().includes("[security]"), asset, announcement: parseAnnouncement(j.announcement),
+    min_version: typeof j.min_version === "string" ? clean(j.min_version, 32).replace(/^v/, "") : "",
     yanked: (Array.isArray(j.yanked) ? j.yanked : []).filter((v) => typeof v === "string").map((v) => clean(v, 32).replace(/^v/, "")),
     rollout: typeof j.rollout === "number" ? Math.max(0, Math.min(100, Math.floor(j.rollout))) : (j.rollout_days > 0 ? 0 : 100),
     rollout_days: typeof j.rollout_days === "number" && j.rollout_days > 0 ? Math.min(365, Math.floor(j.rollout_days)) : 0,
@@ -153,10 +154,13 @@ function effectiveRollout(l, at = Date.now() / 1000) {
 
 const isYanked = (l, current) => (l.yanked || []).includes(String(current).replace(/^v/, ""));
 
-// Yanked → always (if there's somewhere to go); security → always; otherwise by rollout bucket.
+// Below the publisher's minimum version (scripts/min-version.sh): this copy must update.
+const isRequired = (l, current) => Boolean(l.min_version) && isNewer(l.min_version, current) && isNewer(l.version, current);
+
+// Yanked → always (if there's somewhere to go); required or security → always; otherwise by rollout bucket.
 function offeredTo(l, current, bucket) {
   if (isYanked(l, current)) return l.version !== String(current).replace(/^v/, "");
-  return isNewer(l.version, current) && (l.security || bucket < effectiveRollout(l));
+  return isNewer(l.version, current) && (l.security || isRequired(l, current) || bucket < effectiveRollout(l));
 }
 
 // This copy's bucket, 0-99: random once, kept locally, never sent anywhere.
@@ -215,6 +219,7 @@ function announcementLine(a) {
 
 function noticeLine(l, current) {
   if (isYanked(l, current)) return `⚠️  ${BINARY} ${current} was pulled by its publisher. Run \`${how()}\` to move to ${l.version} · ${l.page}`;
+  if (isRequired(l, current)) return `⚠️  UPDATE REQUIRED: ${BINARY} ${current} is no longer supported (minimum ${l.min_version}). Run \`${how()}\` to get ${l.version} · ${l.page}`;
   return l.security
     ? `⚠️  SECURITY UPDATE: ${BINARY} ${l.version} fixes a security issue (you have ${current}). Run \`${how()}\` · ${l.page}`
     : `${BINARY} ${l.version} is available (you have ${current}) · \`${how()}\` · what's new: ${l.page}`;
@@ -270,4 +275,4 @@ async function upgradeAt(exe, current, rollback, p) {
   }
 }
 
-module.exports = { signatureOk, effectiveRollout, loopbackOrigin, isYanked, offeredTo, rolloutBucket, clean, announcement, announcementLine, checksAllowed, isNewer, platformKey, policy, parseManifest, fetchLatest, check, noticeLine, notify, upgrade, upgradeAt };
+module.exports = { isRequired, signatureOk, effectiveRollout, loopbackOrigin, isYanked, offeredTo, rolloutBucket, clean, announcement, announcementLine, checksAllowed, isNewer, platformKey, policy, parseManifest, fetchLatest, check, noticeLine, notify, upgrade, upgradeAt };

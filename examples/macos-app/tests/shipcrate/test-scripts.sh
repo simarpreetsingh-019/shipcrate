@@ -79,6 +79,13 @@ sh scripts/rollout.sh 100 --file dist/r.json >/dev/null
 valid dist/r.json 'assert "rollout" not in d and "rollout_days" not in d' || fail "rollout 100 should end a timed rollout"
 sh scripts/yank.sh 9.9.8 --file dist/r.json >/dev/null && sh scripts/yank.sh 9.9.7 --file dist/r.json >/dev/null && sh scripts/yank.sh 9.9.8 --file dist/r.json >/dev/null
 valid dist/r.json 'assert d["yanked"]==["9.9.8","9.9.7"], d["yanked"]' || fail "yank.sh list wrong"
+if [ -f scripts/min-version.sh ]; then   # required update (older projects may not have it yet)
+  sh scripts/min-version.sh 9.9.0 --file dist/r.json >/dev/null && valid dist/r.json 'assert d["min_version"]=="9.9.0"' || fail "min-version.sh didn't set it"
+  sh scripts/min-version.sh --clear --file dist/r.json >/dev/null && valid dist/r.json 'assert "min_version" not in d' || fail "min-version.sh --clear didn't remove it"
+  sh scripts/min-version.sh '1.0; rm -rf ~' --file dist/r.json >/dev/null 2>&1 && fail "min-version.sh accepted a non-version"
+  MIN_VERSION=v9.0.0 sh scripts/manifest.sh 9.9.9 >/dev/null && valid dist/latest.json 'assert d["min_version"]=="9.0.0"' || fail "manifest.sh ignored MIN_VERSION"
+  MIN_VERSION=10.0.0 sh scripts/manifest.sh 9.9.9 >/dev/null 2>&1 && fail "manifest.sh accepted a minimum newer than the release"
+fi
 ROLLOUT=10 sh scripts/manifest.sh 9.9.9 >/dev/null && valid dist/latest.json 'assert d["rollout"]==10' || fail "manifest.sh ignored ROLLOUT"
 sh scripts/manifest.sh 9.9.9 >/dev/null
 

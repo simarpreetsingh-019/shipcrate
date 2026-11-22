@@ -116,6 +116,11 @@ class RolloutAndYank(unittest.TestCase):
         self.assertIn("pulled", u.notice_line(l, "1.3.0"))
         sec = u.parse_manifest(json.dumps({"version": "1.2.0", "rollout": 0, "security": True}), "k", p)
         self.assertTrue(u.offered_to(sec, "1.0.0", 99))
+        req = u.parse_manifest(json.dumps({"version": "2.0.0", "rollout": 0, "min_version": "v1.5.0"}), "k", p)
+        self.assertTrue(u.offered_to(req, "1.4.9", 99))
+        self.assertFalse(u.offered_to(req, "1.5.0", 99))
+        self.assertFalse(u.is_required(req, "2.0.0"))
+        self.assertIn("UPDATE REQUIRED", u.notice_line(req, "1.4.9"))
 
     def test_timed_rollout(self):
         p = u.Policy(manifest="x", url_prefix="https://github.com/")

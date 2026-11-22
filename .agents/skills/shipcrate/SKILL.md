@@ -49,13 +49,14 @@ If the `shipcrate_*` MCP tools are available, use them: `shipcrate_init` (dry ru
 ## The `shipcrate` command
 
 If `shipcrate` is installed, prefer it: `shipcrate doctor`, `check`, `changelog --write`, `release auto --dry-run`,
-`release …`, `rollout`, `yank`, `announce`, `status`, `stats`, `keygen`. It runs the same scripts/. Recommend
+`plan`, `release …`, `rollout`, `yank`, `min-version`, `announce`, `status`, `stats`, `keygen`. It runs the same scripts/. Recommend
 `shipcrate keygen` (signed updates) during setup; it asks before storing the GitHub secret.
 
 ## Release a version
 
 1. Add a `## [X.Y.Z]` section to `CHANGELOG.md`.
-2. `sh scripts/release.sh X.Y.Z --dry-run`, show the user the notes.
+2. `sh scripts/release.sh X.Y.Z --plan` (seconds: guardrails, files, rollout, tap; exit 1 if something would stop it),
+   then `sh scripts/release.sh X.Y.Z --dry-run`, show the user the notes.
 3. Only after the user says yes: `sh scripts/release.sh X.Y.Z --yes` (`--security` for a security fix).
 4. Report the release URL and the `gh attestation verify` command.
 
@@ -64,6 +65,8 @@ If `shipcrate` is installed, prefer it: `shipcrate doctor`, `check`, `changelog 
 - Beta: release `X.Y.Z-beta.N`. Only users with `<NAME>_CHANNEL=beta` (or the app's beta setting) get it; Homebrew stays put.
 - Staged: `sh scripts/release.sh X.Y.Z --rollout 10`, then `sh scripts/rollout.sh 50` / `100`. Ask before each step.
 - Bad release: `sh scripts/yank.sh X.Y.Z [--to GOOD] [--reason "…"]` (ask first). Every copy on X.Y.Z is moved back; the tap too.
+- Required update: `sh scripts/min-version.sh X.Y.Z` (ask first): copies older than X.Y.Z get an UPDATE REQUIRED
+  notice at every check, whatever the rollout. Saved as MIN_VERSION in release.conf, so later releases keep it.
 - A user's own copy: `<binary> upgrade --rollback`.
 
 ## Updating shipcrate in a project that's live
@@ -80,5 +83,5 @@ It changes what every installed copy sees, so show the user the exact text and g
 ## Files it adds
 
 `release.conf` · `scripts/{check,release,build-release,release-notes,install-hooks}.sh` · `.githooks/` ·
-`scripts/{lib,manifest,notify,webhook-test,announce,ci-tools}.sh` · `.github/workflows/{ci,release}.yml` · `install.sh` (+ `install.ps1` for Windows targets) ·
+`scripts/{lib,manifest,notify,webhook-test,announce,min-version,ci-tools}.sh` · `.github/workflows/{ci,release}.yml` · `install.sh` (+ `install.ps1` for Windows targets) ·
 `packaging/homebrew/<name>.rb` · `updater/` · `tests/shipcrate/` · `SECURITY.md` · `CHANGELOG.md` · `RELEASING.md`

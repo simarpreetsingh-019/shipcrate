@@ -139,6 +139,7 @@ const ACTIONS = {
   baseline:  a => hasScript("stats.sh") || ["sh", ["scripts/stats.sh", a.clear ? "--baseline-clear" : "--baseline"]],
   sync:      () => ["sh", [path.join(KIT, "bin/shipcrate"), "sync", "--yes"]],
   preview:   a => { hasScript("release.sh"); need(VER.test(a.version || ""), "version must look like 1.2.3 or 1.2.3-beta.1"); return ["sh", ["scripts/release.sh", a.version, "--dry-run"]]; },
+  plan:      a => { hasScript("release.sh"); need(a.version === "auto" || VER.test(a.version || ""), "version must look like 1.2.3, 1.2.3-beta.1 or auto"); return ["sh", ["scripts/release.sh", a.version, "--plan"]]; },
   webhook:   a => { hasScript("webhook-test.sh"); need(!a.event || ["all", "release", "security", "announcement", "yank"].includes(a.event), "unknown event"); need(/^https:\/\/[^\s]+$|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/\S*)?$/.test(a.url || ""), "URL must be https (http only for localhost)");
                     return ["sh", ["scripts/webhook-test.sh", "--url", a.url, ...(a.event && a.event !== "all" ? ["--event", a.event] : [])]]; },
   rollout:   a => { hasScript("rollout.sh"); const p = Number(a.percent); need(Number.isInteger(p) && p >= 0 && p <= 100, "percent must be 0-100");
@@ -149,11 +150,13 @@ const ACTIONS = {
                     need(["info", "warning", "security"].includes(a.level || "info"), "level: info, warning or security");
                     need(!a.url || /^https:\/\/\S+$/.test(a.url), "link must be https"); need(!a.below || VER.test(a.below), "below must be a version");
                     return ["sh", ["scripts/announce.sh", msg, "--level", a.level || "info", ...(a.url ? ["--url", a.url] : []), ...(a.below ? ["--below", a.below] : []), "--yes"]]; },
+  minversion: a => { hasScript("min-version.sh"); if (a.clear) return ["sh", ["scripts/min-version.sh", "--clear", "--yes"]];
+                    need(VER.test(a.version || ""), "minimum version must look like 1.2.3"); return ["sh", ["scripts/min-version.sh", a.version, "--yes"]]; },
   yank:      a => { hasScript("yank.sh"); need(VER.test(a.version || ""), "version to yank must look like 1.2.3"); need(!a.to || VER.test(a.to), "--to must be a version");
                     const reason = a.reason ? textArg(a.reason, 200, "reason") : "";
                     return ["sh", ["scripts/yank.sh", a.version, ...(a.to ? ["--to", a.to] : []), ...(reason ? ["--reason", reason] : []), "--yes"]]; },
 };
-const PUBLISHES = new Set(["rollout", "announce", "yank", "sync", "baseline"]);   // change what users see, or files here: need confirm
+const PUBLISHES = new Set(["rollout", "announce", "minversion", "yank", "sync", "baseline"]);   // change what users see, or files here: need confirm
 const shown = (cmd, args) => [cmd, ...args].filter(x => x !== "--yes").map(x => /^[\w./:=@%+-]+$/.test(x) ? x : `'${x.replace(/'/g, "'\\''")}'`).join(" ")
   .replace(path.join(KIT, "bin/shipcrate"), "shipcrate");
 

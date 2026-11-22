@@ -14,7 +14,7 @@ Use:
     print(update_check.upgrade(__version__))         # `hello-py upgrade` (rollback=True for --rollback)
 Announcements (scripts/announce.sh) print once per message inside notify(); or read them with announcement().
 Beta channel: HELLO_PY_CHANNEL=beta reads the beta manifest (pre-releases plus every stable release).
-Staged rollouts ("rollout": N) and pulled versions ("yanked") are handled for you.
+Staged rollouts ("rollout": N), pulled versions ("yanked") and required updates ("min_version") are handled for you.
 A mirror or your own update server: HELLO_PY_UPDATE_MANIFEST=https://…/latest.json (same format).
 """
 import hashlib, io, json, os, platform, shutil, sys, tarfile, tempfile, time, urllib.request, zipfile
@@ -216,6 +216,7 @@ def parse_manifest(body, key, policy):
     return {"version": str(j["version"]).lstrip("v"), "page": j.get("page") or f"https://github.com/{REPO}/releases",
             "notes": notes, "security": bool(j.get("security")) or "[security]" in notes.lower(), "asset": asset,
             "announcement": _announcement(j.get("announcement")),
+            "min_version": clean(j["min_version"], 32).lstrip("v") if isinstance(j.get("min_version"), str) else "",
             "yanked": [clean(v, 32).lstrip("v") for v in (j.get("yanked") or []) if isinstance(v, str)],
             "rollout": _rollout_start(j),
             "rollout_days": max(0, min(365, int(j["rollout_days"]))) if isinstance(j.get("rollout_days"), (int, float)) else 0,
@@ -252,11 +253,18 @@ def is_yanked(latest, current):
     return current.lstrip("v") in (latest.get("yanked") or [])
 
 
+def is_required(latest, current):
+    """Below the publisher's minimum version (scripts/min-version.sh): this copy must update."""
+    m = latest.get("min_version") or ""
+    return bool(m) and is_newer(m, current) and is_newer(latest["version"], current)
+
+
 def offered_to(latest, current, bucket):
-    """Yanked → always (if there's somewhere to go); security → always; otherwise by rollout bucket."""
+    """Yanked → always (if there's somewhere to go); required or security → always; otherwise by rollout bucket."""
     if is_yanked(latest, current):
         return latest["version"] != current.lstrip("v")
-    return is_newer(latest["version"], current) and (latest.get("security") or bucket < effective_rollout(latest))
+    return is_newer(latest["version"], current) and bool(
+        latest.get("security") or is_required(latest, current) or bucket < effective_rollout(latest))
 
 
 def rollout_bucket():
@@ -361,6 +369,9 @@ def notice_line(latest, current):
     if is_yanked(latest, current):
         return (f"⚠️  {BINARY} {current} was pulled by its publisher. Run `{_how()}` to move to {latest['version']} · "
                 f"{latest['page']}")
+    if is_required(latest, current):
+        return (f"⚠️  UPDATE REQUIRED: {BINARY} {current} is no longer supported (minimum {latest['min_version']}). "
+                f"Run `{_how()}` to get {latest['version']} · {latest['page']}")
     if latest["security"]:
         return (f"⚠️  SECURITY UPDATE: {BINARY} {latest['version']} fixes a security issue (you have {current}). "
                 f"Run `{_how()}` · {latest['page']}")

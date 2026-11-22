@@ -49,6 +49,10 @@ test("rollout, yank, security, beta channel", () => {
   assert.ok(u.offeredTo(l, "1.3.0", 99));
   assert.match(u.noticeLine(l, "1.3.0"), /pulled/);
   assert.ok(u.offeredTo(u.parseManifest(JSON.stringify({ version: "1.2.0", rollout: 0, security: true }), "k", p), "1.0.0", 99));
+  const req = u.parseManifest(JSON.stringify({ version: "2.0.0", rollout: 0, min_version: "v1.5.0" }), "k", p);
+  assert.ok(u.offeredTo(req, "1.4.9", 99) && !u.offeredTo(req, "1.5.0", 99), "below min_version ignores rollout");
+  assert.ok(u.isRequired(req, "1.4.9") && !u.isRequired(req, "2.0.0"));
+  assert.match(u.noticeLine(req, "1.4.9"), /UPDATE REQUIRED.*minimum 1\.5\.0/);
   process.env["HELLO_NODE_CHANNEL"] = "beta";
   try { assert.match(u.policy().manifest, /\/releases\/download\/channel\/beta\.json$/); } finally { delete process.env["HELLO_NODE_CHANNEL"]; }
 });

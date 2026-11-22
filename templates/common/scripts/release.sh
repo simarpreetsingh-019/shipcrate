@@ -10,20 +10,24 @@
 #   a beta of this version first (--skip-beta), scripts/update-path-test.sh passed for this commit (--skip-update-test),
 #   and a timed rollout (SAFE_ROLLOUT_DAYS in release.conf, default 7; --full-rollout to skip).
 # Every file name the last release had must still be there, so older copies can always update (--allow-renamed-assets).
+# --min-version X: copies older than X must update (saved as MIN_VERSION in release.conf; see scripts/min-version.sh).
 # --trust-ci: when CI passed on this exact commit, skip re-running the whole gate locally (saves a full build + tests).
+# --plan: what the release would do (guardrails, files per platform, manifest, rollout, channels, tap, webhook) in
+#   seconds, without running the gate or building anything (`shipcrate plan`). Exit 1 if something would stop it.
 # --dry-run builds and prints the notes but changes nothing. Asks before publishing unless --yes.
 # Needs git and gh (`gh auth login`). Tokens never go in files: webhook settings come from the environment.
 set -eu
 cd "$(dirname "$0")/.."
 . ./release.conf; . scripts/lib.sh
 V=""; NOTES=""; FLAGS=""; YES=0; DRY=0; ROLLOUT=100; ROLLOUT_DAYS=""; NEXT=""
-SKIP_BETA=0; SKIP_UPT=0; FULL=0; RENAMED=0; TRUST_CI=0
+PLAN=0; STOPS=0; SET_MIN=0; SKIP_BETA=0; SKIP_UPT=0; FULL=0; RENAMED=0; TRUST_CI=0
 for a in "$@"; do
   if [ "$NEXT" = rollout ]; then ROLLOUT="$a"; NEXT=""; continue; fi
   if [ "$NEXT" = days ]; then ROLLOUT_DAYS="$a"; NEXT=""; continue; fi
+  if [ "$NEXT" = minv ]; then MIN_VERSION="${a#v}"; SET_MIN=1; NEXT=""; continue; fi
   case "$a" in
   --skip-beta) SKIP_BETA=1 ;; --skip-update-test) SKIP_UPT=1 ;; --full-rollout) FULL=1 ;; --allow-renamed-assets) RENAMED=1 ;; --trust-ci) TRUST_CI=1 ;;
-  --yes|-y) YES=1 ;; --dry-run|-n) DRY=1 ;; --security) FLAGS="--security" ;; --rollout) NEXT=rollout ;; --rollout-days) NEXT=days ;;
+  --yes|-y) YES=1 ;; --dry-run|-n) DRY=1 ;; --plan) PLAN=1; DRY=1 ;; --security) FLAGS="--security" ;; --rollout) NEXT=rollout ;; --rollout-days) NEXT=days ;; --min-version) NEXT=minv ;;
   -*) echo "unknown flag $a"; exit 2 ;;
   *) if [ -z "$V" ]; then V="${a#v}"; else NOTES="$a"; fi ;;
 esac; done
@@ -33,11 +37,16 @@ case "$ROLLOUT" in ''|*[!0-9]*) echo "✗ --rollout takes a percent (1-100)"; ex
 case "$ROLLOUT_DAYS" in ""|[1-9]|[1-9][0-9]) ;; *) echo "✗ --rollout-days takes 1-99"; exit 2 ;; esac
 if [ -n "$ROLLOUT_DAYS" ] && [ "$ROLLOUT" = 100 ]; then ROLLOUT=0; fi
 export ROLLOUT_DAYS
+if [ $SET_MIN = 1 ]; then
+  printf '%s' "$MIN_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' || { echo "✗ --min-version takes a version like 1.4.0"; exit 2; }
+  ! ver_gt "$MIN_VERSION" "$V" || { echo "✗ --min-version $MIN_VERSION is newer than $V"; exit 2; }
+fi
+export MIN_VERSION="${MIN_VERSION:-}"
 PRE=0; case "$V" in *-*) PRE=1 ;; esac
 say() { printf '%s\n' "$*"; }
 die() { say "✗ $*"; exit 1; }
 # In a dry run, guardrail failures are reported but don't stop the preview.
-guard() { if [ $DRY = 1 ]; then say "• (dry run) would stop: $*"; else die "$*"; fi; }
+guard() { if [ $DRY = 1 ]; then STOPS=$((STOPS+1)); say "• ($([ $PLAN = 1 ] && echo plan || echo dry run)) would stop: $*"; else die "$*"; fi; }
 
 # One release at a time from this folder (two terminals or agents releasing at once would race).
 if [ $DRY = 0 ]; then
@@ -99,6 +108,42 @@ if [ -n "$LAST_STABLE" ] && [ $RENAMED = 0 ] && command -v gh >/dev/null && gh a
   done
 fi
 
+if [ $PLAN = 1 ]; then
+  row() { printf '  %-10s %s\n' "$1" "$2"; }
+  say ""; say "──── Plan: $PRODUCT $V ($([ $PRE = 1 ] && echo pre-release || echo stable)) ────"
+  row Version "$V${LAST:+ (last release $LAST)}${NOTES:+ · extra notes given}"
+  if [ $TRUST_CI = 1 ] && [ "${CI:-}" = success ]; then row Gate "skipped: CI passed on $(git rev-parse --short HEAD) (--trust-ci)"
+  else row Gate "sh scripts/check.sh --release$([ "${CI:-}" = success ] && echo '  (CI passed: --trust-ci would skip it)')"; fi
+  row "Set ver" "$VERSION_CMD"
+  for t in $TARGETS; do a=$(asset_for "$t")
+    if [ "$BUILD_WHERE" = local ]; then case "$t" in any|macos|"$(host_target)") w="built here: $BUILD_CMD" ;; *) w="skipped here (not this machine's platform)" ;; esac
+    else w="built in CI (.github/workflows/release.yml)"; fi
+    row "$t" "$a + $a.sha256 · $w"
+  done
+  F="SHA256SUMS, latest.json"; grep -q "^PUBLIC_KEY='[A-Za-z0-9+/=]\{40,\}'" release.conf && F="$F + latest.json.sig (signed updates)"
+  row Release "github.com/$REPO/releases/tag/v$V$([ $PRE = 1 ] && echo ' (marked pre-release)')"
+  row Files "$F; CI adds an SBOM, Sigstore signatures and a provenance attestation"
+  row Notes "CHANGELOG.md '## [$V]'$( [ -n "$CREDIT" ] && echo " + credit line")"
+  if [ $PRE = 1 ]; then RO="beta channel only (stable users and Homebrew stay put)"
+  elif [ -n "$ROLLOUT_DAYS" ]; then RO="$ROLLOUT% → 100% over $ROLLOUT_DAYS days, on each client by itself"
+  elif [ "$ROLLOUT" -lt 100 ]; then RO="$ROLLOUT% of copies; widen with scripts/rollout.sh"
+  else RO="everyone, now"; fi
+  row Rollout "$RO"
+  row Security "$([ -n "$FLAGS" ] && echo 'yes: every copy is told, whatever the rollout' || echo no)"
+  row Required "$([ -n "$MIN_VERSION" ] && echo "copies before $MIN_VERSION must update$([ $SET_MIN = 1 ] && echo ' (new: saved to release.conf)')" || echo none)"
+  row Beta "channel/beta.json updated (beta users get every release)"
+  if [ "$TAP_REPO" = none ]; then TP="none (TAP_REPO=none)"
+  elif [ $PRE = 1 ]; then TP="$TAP_REPO unchanged (pre-release)"
+  elif [ -z "$ROLLOUT_DAYS" ] && [ "$ROLLOUT" -lt 100 ]; then TP="$TAP_REPO bumped when the rollout reaches 100%"
+  else TP="$TAP_REPO bumped to $V"; fi
+  row Homebrew "$TP"
+  row Webhook "$([ -n "${RELEASE_WEBHOOK_URL:-}" ] && echo "POST release event to $(printf '%s' "$RELEASE_WEBHOOK_URL" | sed 's#^\(https*://[^/]*\).*#\1#')/…" || echo 'none (RELEASE_WEBHOOK_URL not set here)')"
+  say ""
+  if [ $STOPS = 0 ]; then say "✓ Ready. Next: sh scripts/release.sh $V --dry-run (full build), then without --dry-run."
+  else say "✗ $STOPS thing(s) above would stop this release."; exit 1; fi
+  exit 0
+fi
+
 if [ $TRUST_CI = 1 ] && [ "${CI:-}" = success ]; then
   # CI already ran the gate on this exact commit: don't build and test it all again here.
   say "→ Quality gate: CI passed on $(git rev-parse --short HEAD), not re-running it here (--trust-ci)"
@@ -111,6 +156,7 @@ else
   sh scripts/check.sh --release || guard "the gate failed: fix it before releasing"
 fi
 
+[ -n "$MIN_VERSION" ] && say "• required update: copies older than $MIN_VERSION must update (MIN_VERSION)"
 say "→ Setting version $V"
 export V; [ $DRY = 1 ] || sh -c "$VERSION_CMD"
 
@@ -133,6 +179,10 @@ if [ $YES = 0 ]; then
   read -r ok; case "$ok" in y|Y|yes) ;; *) die "cancelled, nothing published (version files were edited: git checkout . to undo)";; esac
 fi
 
+if [ $SET_MIN = 1 ]; then   # keep the minimum for later releases (and for CI, which builds from this commit)
+  if grep -q '^MIN_VERSION=' release.conf; then sed "s/^MIN_VERSION=.*/MIN_VERSION='$MIN_VERSION'/" release.conf > release.conf.tmp && mv release.conf.tmp release.conf
+  else printf "# Required update: copies older than this must update (scripts/min-version.sh). Empty = none.\nMIN_VERSION='%s'\n" "$MIN_VERSION" >> release.conf; fi
+fi
 git add -A && (git commit -qm "Release $V" || true)
 git tag -a "v$V" -m "$PRODUCT $V"
 git push -q && git push -q origin "v$V"

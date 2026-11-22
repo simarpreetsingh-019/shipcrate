@@ -35,6 +35,9 @@ expect(Updater.parseManifest(m2(["rollout": 25]), current: "1.0.0", bucket: 60) 
 expect(Updater.parseManifest(m2(["rollout": 0, "security": true]), current: "1.0.0", bucket: 99) != nil, "security ignores rollout")
 let back = Updater.parseManifest(m2(["yanked": ["1.3.0"]]), current: "1.3.0", bucket: 99)
 expect(back != nil && back!.replacesYanked, "yanked version is offered the older good release")
+let req = Updater.parseManifest(m2(["rollout": 0, "min_version": "v1.1.0"]), current: "1.0.0", bucket: 99)
+expect(req != nil && req!.required && req!.minVersion == "1.1.0", "below min_version: required, ignores rollout")
+expect(Updater.parseManifest(m2(["rollout": 0, "min_version": "1.1.0"]), current: "1.1.0", bucket: 99) == nil, "at min_version: normal rollout")
 let t0 = ISO8601DateFormatter().date(from: "2026-11-20T00:00:00Z")!
 let timed: [String: Any] = ["published": "2026-11-20T00:00:00Z", "rollout_days": 4]
 expect(Updater.effectiveRollout(timed, now: t0) == 0, "timed rollout starts at 0%")

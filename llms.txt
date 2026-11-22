@@ -33,11 +33,12 @@ Website: https://simarpreetsingh-019.github.io/shipcrate/
 
 ## Operate
 
-- Release: `shipcrate changelog --write` (or write `## [X.Y.Z]` yourself) → `shipcrate release auto --dry-run` → user approves → `shipcrate release auto`
+- Release: `shipcrate changelog --write` (or write `## [X.Y.Z]` yourself) → `shipcrate plan` (seconds, no build) → `shipcrate release auto --dry-run` → user approves → `shipcrate release auto`
 - Timed rollout: `--rollout-days 7` (grows to 100% by itself)
 - Security fix: `--security`. Beta: version `X.Y.Z-beta.N` (users opt in with `<NAME>_CHANNEL=beta`).
 - Staged rollout: `sh scripts/release.sh X.Y.Z --rollout 10`, then `sh scripts/rollout.sh 50`, then `sh scripts/rollout.sh 100`
 - Bad release: `sh scripts/yank.sh X.Y.Z [--to GOOD] [--reason "…"]`
+- Required update (old copies must update): `shipcrate min-version X.Y.Z` (or `release.sh … --min-version X.Y.Z`; `--clear`, `--show`)
 - Message every user: `sh scripts/announce.sh "text" [--level info|warning|security] [--url https://…] [--below X.Y.Z]`
 - Updating shipcrate in a live app: `shipcrate sync` (from a shipcrate release only), then a beta, `sh scripts/update-path-test.sh X.Y.Z`, and the stable release (timed rollout by default)
 - Download numbers (no tracking): `shipcrate stats` (history: `STATS_SNAPSHOTS='on'` in release.conf, then `--history stats.csv`)

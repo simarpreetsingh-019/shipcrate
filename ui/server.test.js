@@ -47,6 +47,12 @@ test("ui server guards", async () => {
     assert.match((await planErr("announce", { message: "x".repeat(301) }))[1], /1-300/);
     assert.match((await planErr("webhook", { url: "https://a.b", event: "evil" }))[1], /unknown event/);
     assert.match((await planErr("check", "--release"))[1], /args must be an object/);
+    const pl = await req(port, "/api/plan", { method: "POST", headers: H, body: JSON.stringify({ action: "plan", args: { version: "auto" } }) });
+    assert.deepStrictEqual(JSON.parse(pl.body), { command: "sh scripts/release.sh auto --plan", publishes: false });
+    const mv = await req(port, "/api/plan", { method: "POST", headers: H, body: JSON.stringify({ action: "minversion", args: { version: "1.4.0" } }) });
+    assert.deepStrictEqual(JSON.parse(mv.body), { command: "sh scripts/min-version.sh 1.4.0", publishes: true });
+    assert.match((await planErr("minversion", { version: "--clear" }))[1], /must look like/);
+    assert.match((await req(port, "/api/run", { method: "POST", headers: H, body: JSON.stringify({ action: "minversion", args: { version: "1.4.0" } }) })).body, /confirm/);
     const ok = await req(port, "/api/plan", { method: "POST", headers: H, body: JSON.stringify({ action: "announce", args: { message: "Hi 👋 it's \"ok\"" } }) });
     assert.strictEqual(ok.code, 200, "normal text with quotes and emoji is fine");
     assert.match((await req(port, "/api/plan", { method: "POST", headers: H, body: "{nope" })).body, /invalid JSON/);
