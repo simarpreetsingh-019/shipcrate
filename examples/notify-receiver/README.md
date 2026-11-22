@@ -29,6 +29,9 @@ release, a security release, an announcement and a yank, each signed, wrongly si
 RELEASE_WEBHOOK_SECRET=dev-secret shipcrate webhook test --url http://localhost:8787
 ```
 
+**Watch it live:** start the receiver with `VIEW=1` and open http://localhost:8787/ : every message, accepted or
+refused, with its one-line summary (served only to this machine, refreshes every 2 s).
+
 **Postman:** import [shipcrate-webhooks.postman_collection.json](shipcrate-webhooks.postman_collection.json), set
 the collection variables `url` and `secret`, and run it. A pre-request script signs each body, and the tests
 check accepted (2xx) and refused (4xx). For your own project's names, generate one:
