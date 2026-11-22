@@ -50,6 +50,8 @@ case "$LEVEL" in 3) NEXT="$((MAJ+1)).0.0" ;; 2) NEXT="$MAJ.$((MIN+1)).0" ;; *) N
 # Betas already name the next version (1.10.0-beta.2 after 1.9.0): the stable release is that version, not 1.9.1.
 PRE=$(git tag -l 'v[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-' | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+)-.*/\1/' | sort -u -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
 if [ -n "$PRE" ] && ver_gt "$PRE" "$BASE" && ver_gt "$PRE" "$NEXT"; then NEXT="$PRE"; fi
+# No release yet: start from the version the project already declares (first release of makereel 0.7.0 is 0.7.0).
+if [ -z "$LAST" ] && DECL=$(declared_version) && ver_gt "$DECL" "$NEXT"; then NEXT="${DECL%%-*}"; fi
 DATE=$(date -u +%Y-%m-%d)
 
 case "$MODE" in

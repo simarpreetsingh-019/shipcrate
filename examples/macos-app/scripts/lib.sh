@@ -2,6 +2,17 @@
 # Targets are "<os>-<arch>" (macos-arm64, macos-x64, linux-x64, linux-arm64, windows-x64, windows-arm64),
 # "macos" for a macOS app, or "any" for platform-independent builds (Python zipapp, JS bundle).
 
+# The version the project itself declares (Cargo.toml, pyproject.toml or package.json), or nothing.
+# Used when there's no release tag yet, so the first release never goes backwards (0.0.1 after 0.7.0).
+declared_version() {
+  for f in Cargo.toml pyproject.toml; do
+    [ -f "$f" ] || continue
+    v=$(sed -n 's/^version[ ]*=[ ]*"\([0-9][0-9A-Za-z.+-]*\)".*/\1/p' "$f" | head -1); [ -n "$v" ] && { echo "$v"; return 0; }
+  done
+  [ -f package.json ] && v=$(sed -n 's/^  "version"[ ]*:[ ]*"\([0-9][0-9A-Za-z.+-]*\)".*/\1/p' package.json | head -1) && [ -n "$v" ] && { echo "$v"; return 0; }
+  return 1
+}
+
 # This machine's target, e.g. macos-arm64.
 host_target() {
   case "$(uname -s)" in Darwin) os=macos ;; Linux) os=linux ;; MINGW*|MSYS*|CYGWIN*|Windows_NT) os=windows ;; *) os=unknown ;; esac

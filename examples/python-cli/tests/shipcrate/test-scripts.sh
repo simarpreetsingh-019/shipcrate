@@ -147,7 +147,14 @@ fi
 G="$W/g"; mkdir -p "$G" && cp -R "$ROOT/scripts" "$ROOT/release.conf" "$G/" && cd "$G"
 git init -q && git config user.email t@example.invalid && git config user.name t && git config commit.gpgsign false
 printf '# Changelog\n\n## [1.2.3] - 2026-01-01\n- old\n' > CHANGELOG.md
-git add -A && git commit -qm "chore: init" --no-verify && git tag v1.2.3
+git add -A && git commit -qm "chore: init" --no-verify
+if grep -q '^declared_version()' scripts/lib.sh; then   # no release yet: start from the project's own version, never go backwards
+  printf '[project]\nname = "g"\nversion = "0.7.0"\n' > pyproject.toml
+  git commit -q --allow-empty --no-verify -m "fix: something"
+  [ "$(sh scripts/changelog.sh --version)" = 0.7.0 ] || fail "first release should start at the declared 0.7.0, got $(sh scripts/changelog.sh --version)"
+  rm pyproject.toml
+fi
+git tag v1.2.3
 c() { git commit -q --allow-empty --no-verify -m "$1"; }
 c "fix: crash on empty input"
 git tag v1   # a moving major tag (GitHub Action style) must not count as the last release

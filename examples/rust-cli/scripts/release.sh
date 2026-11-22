@@ -67,6 +67,8 @@ git rev-parse -q --verify "refs/tags/v$V" >/dev/null && die "tag v$V already exi
 LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' | while read -r t; do echo "$t"; done | {
   best=""; while read -r t; do if [ -z "$best" ] || ver_gt "$t" "$best"; then best=$t; fi; done; echo "$best"; })   # skips moving tags like v1
 if [ -n "$LAST" ] && ! ver_gt "$V" "${LAST#v}"; then die "$V isn't newer than the last release ($LAST)"; fi
+DECL=$(declared_version || true)
+[ -n "$DECL" ] && ver_gt "$DECL" "$V" && guard "$V is older than the version the project declares ($DECL): users would be offered a downgrade"
 [ -z "$(git status --porcelain)" ] || guard "commit or stash your changes first"
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 DEFAULT=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##'); DEFAULT=${DEFAULT:-main}
@@ -109,7 +111,7 @@ if [ -n "$LAST_STABLE" ] && [ $RENAMED = 0 ] && command -v gh >/dev/null && gh a
 fi
 
 if [ $PLAN = 1 ]; then
-  row() { printf '  %-10s %s\n' "$1" "$2"; }
+  row() { printf '  %-13s %s\n' "$1" "$2"; }
   say ""; say "──── Plan: $PRODUCT $V ($([ $PRE = 1 ] && echo pre-release || echo stable)) ────"
   row Version "$V${LAST:+ (last release $LAST)}${NOTES:+ · extra notes given}"
   if [ $TRUST_CI = 1 ] && [ "${CI:-}" = success ]; then row Gate "skipped: CI passed on $(git rev-parse --short HEAD) (--trust-ci)"

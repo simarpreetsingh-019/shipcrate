@@ -6,6 +6,9 @@
 - **Required updates (minimum version):** `shipcrate min-version X.Y.Z` (or `release.sh … --min-version X.Y.Z`) makes every copy older than X.Y.Z show "UPDATE REQUIRED" at every check, whatever the rollout; Swift apps get a red "Update required" button and a critical alert. Saved as `MIN_VERSION` in `release.conf` so later releases keep it, and written into the live `latest.json` and beta channel at once. In all four updaters (`min_version` in latest.json), the dashboard (Actions → Required update, and on the Stable card) and `shipcrate status`. Learned from Sparkle's critical updates.
 - **`shipcrate plan [X.Y.Z]`** (`release.sh --plan`): what a release would do, in about two seconds and without building: guardrails that would stop it, the file per platform and where it's built, the release files, notes, rollout, security, required update, beta channel, Homebrew and webhook. Exits 1 if something would stop the release. Also a **Plan** button in the dashboard. Learned from `dist plan`.
 
+### Fixed
+- **First release could go backwards:** with no release tag yet, `changelog.sh` (and so `release auto` / `plan`) suggested 0.0.1 even when the project already says 0.7.0 (makereel) or 0.2.0 (msh). It now starts from the version in Cargo.toml, pyproject.toml or package.json, and `release.sh` stops a release older than that version (users would be offered a downgrade). Found by testing `plan` on the makereel and msh sandboxes.
+
 ## [0.5.1] - 2026-11-23
 
 ### Added
