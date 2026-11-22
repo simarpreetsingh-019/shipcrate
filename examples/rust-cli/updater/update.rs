@@ -475,7 +475,9 @@ pub fn base64_decode(s: &str) -> Option<Vec<u8>> {
 
 /// SHA-512 via the system tools (shasum, sha512sum, or certutil on Windows).
 pub fn sha512(data: &[u8]) -> Option<[u8; 64]> {
-    let path = env::temp_dir().join(format!("{BINARY}-sig-{}-{}", std::process::id(), now()));
+    static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path = env::temp_dir().join(format!("{BINARY}-sig-{}-{n}-{}", std::process::id(), now()));
     fs::write(&path, data).ok()?;
     let run = |cmd: &str, pre: &[&str], post: &[&str]| {
         Command::new(cmd).args(pre).arg(&path).args(post).output().ok().filter(|o| o.status.success()).and_then(|o| String::from_utf8(o.stdout).ok())
